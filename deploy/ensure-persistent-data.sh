@@ -12,7 +12,7 @@ app_name="sf-${slug}"
 share_name="sf-${slug}"
 storage_name="data-${slug}"
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-readiness_attempts=${PERSISTENT_READY_ATTEMPTS:-300}
+readiness_attempts=${PERSISTENT_READY_ATTEMPTS:-120}
 
 [[ "$slug" =~ ^[a-z0-9]([a-z0-9-]{0,40}[a-z0-9])?$ ]] || {
   echo "Invalid product slug: $slug" >&2
@@ -72,14 +72,7 @@ az rest --method patch \
 
 ready=false
 for _ in $(seq 1 "$readiness_attempts"); do
-  revision_state=$(az containerapp show \
-    --subscription "$subscription" \
-    --resource-group "$resource_group" \
-    --name "$app_name" \
-    --query '[properties.latestRevisionName,properties.latestReadyRevisionName]' -o tsv)
-  latest_revision=$(awk '{print $1}' <<<"$revision_state")
-  ready_revision=$(awk '{print $2}' <<<"$revision_state")
-  if [[ -n "$latest_revision" && "$latest_revision" == "$ready_revision" ]]; then
+  if "$script_dir/verify-persistent-data.sh" "$slug" >/dev/null 2>&1; then
     ready=true
     break
   fi

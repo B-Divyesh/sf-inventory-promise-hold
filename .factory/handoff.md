@@ -38,8 +38,10 @@ its readiness loop timed out or when the final topology was unsafe.
   mounts that volume at `/data`.
 - Changed `deploy/ensure-persistent-data.sh` to fail on readiness timeout and
   call the same topology verifier rather than merely print Azure state. Its
-  bounded readiness window allows slow Azure Files replacement rollouts while
-  still terminating rather than reporting an unready release.
+  readiness loop now evaluates the full JSON topology instead of incorrectly
+  treating Azure CLI's two-line TSV array as one line. That parser bug made a
+  healthy latest-ready revision wait until timeout. The loop remains bounded
+  at ten minutes and cannot report an unready or unsafe release.
 - Updated deployment documentation so there is one supported release command,
   not a separable two-command procedure.
 - Added executable Node regressions that accept the correct topology, reject

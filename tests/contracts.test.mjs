@@ -29,8 +29,10 @@ test('deployment pins SQLite to one replica on an Azure Files mount', async () =
   assert.match(deployment, /storageType:"AzureFile"/);
   assert.match(deployment, /mountPath:"\/data"/);
   assert.match(deployment, /verify-persistent-data\.sh/);
-  assert.match(deployment, /PERSISTENT_READY_ATTEMPTS:-300/);
+  assert.match(deployment, /PERSISTENT_READY_ATTEMPTS:-120/);
   assert.match(deployment, /release_image/);
+  assert.doesNotMatch(deployment, /--query '\[properties\.latestRevisionName/);
+  assert.match(deployment, /verify-persistent-data\.sh" "\$slug" >\/dev\/null 2>&1/);
 });
 
 async function makeFakeAz(template) {
