@@ -8,6 +8,7 @@ async function enterDesk(page: import('@playwright/test').Page) {
   if (await page.getByRole('heading', { name: 'Open the promise desk.' }).isVisible()) {
     await page.getByLabel('Supervisor PIN').fill(pin);
     await page.getByRole('button', { name: 'Open promise desk' }).click();
+    await expect(page.getByRole('button', { name: 'Lock supervisor' })).toBeVisible();
   }
 }
 
@@ -116,7 +117,7 @@ test('desktop keyboard lifecycle, invalid PIN recovery, and CSV', async ({ brows
   await expect(page.getByText('3 available')).toBeVisible();
 
   await page.getByRole('button', { name: 'Outcomes' }).click();
-  await expect(page.getByText('converted', { exact: true })).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: sku }).getByText('converted', { exact: true })).toBeVisible();
   const downloadEvent = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export CSV' }).click();
   const download = await downloadEvent;

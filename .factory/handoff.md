@@ -1,153 +1,149 @@
-# Stock Promise — build and verification handoff
+# Stock Promise — repair handoff
 
-## Independent verification — FAIL
+Work order: `inventory-promise-hold-repair-1`
 
-Work order: `inventory-promise-hold-verify-1`
+Verifier report: `bf61612ef8c9013f6c74f1991a8b7bd19cf1d478`
 
-Verified candidate: `e826a4523441a78eeaf60f864a77ec0983f367be`
+Failed candidate: `e826a4523441a78eeaf60f864a77ec0983f367be`
 
-Verified URL: <https://inventory-promise-hold.sociobot.in>
+Live product: <https://inventory-promise-hold.sociobot.in>
 
-Verified: 2026-08-28 UTC
+Completed: 2026-08-28 UTC
 
-This candidate is **not approved for release**. Fresh independent verification
-found three release blockers:
+## Disposition
 
-1. The live installation lost its location, inventory, holds, outcomes, and
-   audit state during the verification window. At 04:25 UTC the verifier
-   created and resolved live SKU `QA-C042539`; by 04:27 UTC bootstrap returned
-   `setup_required: true` and an entirely empty database. The local release
-   binary retained the same classes of data when restarted against a persisted
-   SQLite file.
-2. The public deployment permits unauthenticated reads of operational/customer
-   hold data and unauthenticated hold creation. That model is suitable only on
-   the brief's trusted local network, not on the public production origin.
-3. Live `/health` returns `{"build_sha":"development","status":"ok"}`.
-   Candidate frontend assets match byte-for-byte, but the backend identity
-   cannot be confirmed. The Dockerfile omits the required `ARG BUILD_SHA=dev`
-   propagation.
+All release-blocking and additional findings in `.factory/verification.md` are
+repaired with direct regression coverage. The researched brief, single-location
+scope, blue-hour design system, atomic hold behavior, immutable audit ledger,
+paid-unlock behavior, and original imagery are preserved.
 
-Additional defects: no server-side PIN rate limit, direct `/privacy` and
-`/terms` requests return 404, production responses lack an explicit caching
-policy, two mobile legal links have sub-44px target height, and HSTS/Permissions
-Policy are absent.
+## Repairs
 
-The candidate itself passed `npm ci`, `npm test` (1 frontend + 3 backend),
-`npm run check`, `npm run build`, `cargo build --release --locked`, and
-`npm run test:e2e` (2/2). Fresh live QA passed 4/4 browser checks with zero
-serious/critical axe findings and no console/page/request errors. Lighthouse
-mobile scored 94/100/100/100 with 1.829 s LCP and 0.00235 CLS. Live concurrency
-correctly returned one 201 and one 409, and a 3,189-request load smoke had zero
-errors. These passing results do not offset the persistence, access-boundary,
-and identity blockers.
+### Durable shared state
 
-Full evidence and remediation requirements are in
-[`.factory/verification.md`](verification.md).
+- Root cause: the generic Container Apps template mounted no volume at `/data`
+  and allowed three replicas, so each replica used a different ephemeral SQLite
+  file.
+- Added `deploy/ensure-persistent-data.sh`. It creates/reuses the product Azure
+  Files share, mounts it at `/data`, pins min/max replicas to one, waits for the
+  exact mounted revision, and reports the applied topology.
+- Snapshotted the live verifier database before cutover, checkpointed it, and
+  restored it to the durable share. Snapshot SHA-256:
+  `495b659004b79ae542091a1a640f412ccc98e5eb65724524318fa168e4bbdd88`.
+  The restored state contained the original instance ID, location, four SKUs,
+  three outcomes, and eleven audit entries.
+- Existing mounted databases now bind the listener with a lazy pool, make no
+  startup journal/schema mutation, and delay the expiry sweep for 15 seconds.
+  This lets Azure's replacement replica pass readiness before the old replica
+  drains, without opening SQLite concurrently during the handoff.
+- Live rolling-restart proof: replacement replica became ready with zero
+  restarts, the old replica drained, and pre/post bootstrap location,
+  inventory, active holds, and outcomes compared equal. A second clean restart
+  also replaced the replica with zero restarts.
+- Regression coverage reopens a file-backed database and verifies location,
+  inventory, audit, and instance identity; deployment contracts assert the
+  Azure Files mount, one-replica topology, lazy existing-database startup, and
+  absence of a startup journal-mode mutation.
 
----
+### Staff access boundary and PIN abuse controls
 
-## Original builder handoff (historical)
+- `GET /api/bootstrap` and `POST /api/holds` now require a current bearer
+  session. All inventory, customer/order references, operator names, notes,
+  holds, and outcomes are withheld before PIN entry.
+- Added public `GET /api/status`, which exposes only first-run readiness and
+  server time so the access gate loads without a deliberate 401 console error.
+- Added a semantic, keyboard-operable staff gate. Locking clears the in-memory
+  operational view as well as the tab-scoped token.
+- `/api/session` now permits at most 10 attempts per validated proxy client and
+  30 installation-wide per minute, with at most four concurrent Argon2 checks.
+  Excess requests return `429` and `Retry-After: 60`.
+- Unit and browser regressions verify anonymous denial, authenticated recovery,
+  per-client/global/concurrent limits, and no operational text after locking.
 
-Work order: `inventory-promise-hold-build-1`
+### Identity, routes, caching, and hardening
 
-Completed: 2026-08-28
+- `ARG BUILD_SHA=dev` is declared and propagated through the Docker build and
+  runtime. The Rust binary also embeds it as the no-env fallback. `/health`
+  returns the exact factory source commit.
+- Direct `GET`/`HEAD /privacy` and `/terms` return `200`.
+- API and health responses are `no-store`; HTML revalidates; `sw.js` is
+  `no-cache, no-store, must-revalidate`; Vite-hashed JS/CSS are one-year
+  `immutable`; stable images/icons have a one-day policy.
+- Added HSTS and Permissions Policy while preserving CSP, no-sniff, referrer,
+  and same-origin CORS behavior.
+- Mobile footer legal links now expose at least `44×44` CSS px targets.
+- Service-worker cache version advanced to `stock-promise-shell-v2`.
 
-Artifact: container (`axum` + SQLite serving a Vite/Svelte frontend)
+## Verification evidence
 
-## What shipped
+Environment: Node 22.23.2, npm 10.9.8, Rust/Cargo 1.98.0, Playwright 1.58.2.
 
-- A first-run flow that names one stock location and secures supervisor actions
-  with a 6–12 digit Argon2-hashed PIN.
-- A responsive shared promise desk with inventory search, current available /
-  held / on-hand figures, 15-second synchronization, and explicit offline,
-  loading, empty, conflict, error, busy, and expiry states.
-- Atomic hold creation using SQLite `BEGIN IMMEDIATE`. Expired holds are swept
-  inside the same write transaction before availability is checked, preventing
-  two parallel operators from claiming the same units.
-- Automatic server-side expiry every 30 seconds and opportunistically on reads
-  and writes. Create, convert, release, expiry, setup, and stock-edit events are
-  appended to the audit ledger. Database triggers reject audit updates/deletes.
-- Supervisor-only conversion (which deducts physical stock), release, inventory
-  edits, audit inspection, and CSV export. Irreversible outcomes are confirmed
-  with the SKU, quantity, and customer.
-- Manual inventory entry plus simple UTF-8 `sku,name,on_hand` CSV import.
-- `/privacy` and `/terms`, no analytics, no CDN scripts/fonts, session tokens in
-  `sessionStorage`, and local-only operator preferences.
-- Sociobot paid-unlock contract: production checkout link, return-token capture,
-  `sb_license:inventory-promise-hold` storage, once-daily verification, cached
-  offline verdict, and paste-to-restore. The $39 one-time Pro tier adds only
-  convenience features (operator profiles and on-device five-minute reminders);
-  hold safety, audit, and export remain free.
-- Original cinematic stockroom artwork with source, prompt sidecars, review,
-  provenance, disclosure, and 16/30/52 KB responsive WebP derivatives.
-- Multi-stage, non-root Dockerfile. The service starts with no configuration,
-  defaults to `PORT=8080`, persists SQLite at `/data/stock-promise.db`, logs
-  generated/existing instance configuration, exposes `/health`, emits JSON
-  request logs, applies security headers, and shuts down gracefully.
+### Clean/local gates
 
-## Build and verification
+- `npm ci` — passed; 139 packages, 0 vulnerabilities.
+- `npm test` — passed: 1 Vitest, 3 Node deployment contracts, 9 Rust
+  unit/integration tests.
+- `npm run check` — passed: 0 Svelte/TypeScript warnings or errors; Clippy
+  passed with `-D warnings`.
+- `npm run build` — passed and produced `dist/`.
+- `BUILD_SHA=local-verification cargo build --release --locked` — passed.
+- `npm run test:e2e` — 5/5 passed. Coverage includes full setup/stock/hold/
+  conversion/export, anonymous API denial, desktop keyboard and PIN-error
+  recovery, 390 px geometry/touch targets, axe, legal deep links, response
+  policy, reduced motion, service-worker update, and offline recovery.
+- Factory URL verifier against the release binary — passed in 657 ms with
+  title, `lang=en`, one H1/main, complete alt/button names, and zero console
+  errors.
+- Local Lighthouse 13 mobile — Performance 99, Accessibility 100, Best
+  Practices 100, SEO 100; LCP 1,804 ms, CLS 0.00071, TBT 100 ms.
+- Bundle: JS 75,670 bytes raw / 28.01 KB gzip; CSS 18,457 bytes raw / 5.05
+  KB gzip; mobile image 15,414 bytes; full `dist/` 194,007 bytes.
+- Docker is unavailable in the worker image. The same locked stages were built
+  locally, and ACR built and ran the multi-stage image successfully.
 
-The reproducible build commands are:
+### Live gates
+
+- Code-bearing verified revision: `66f8c4f577eaedda9ae0b294e43f9877b2f7eb2c`.
+  `/health` returned that exact 40-character SHA before the final handoff-only
+  commit. The final deployment is required to match its own repository HEAD by
+  the same assertion; no source changes are permitted afterward.
+- Live Playwright — 5/5 passed: desktop and 390 px mobile, keyboard, invalid-PIN
+  recovery, hold conversion and CSV, zero serious/critical axe findings, zero
+  console/page/request errors, privacy origin check, reduced motion,
+  service-worker update/offline reload, anonymous denial, legal status, cache
+  policy, hardening headers, and exact build identity.
+- Live factory URL verifier — HTTP 200, 598 ms, semantic checks passed, zero
+  console errors.
+- Live Lighthouse 13 mobile — Performance 100, Accessibility 100, Best
+  Practices 100, SEO 100; LCP 1,397 ms, FCP 1,351 ms, CLS 0, TBT 0 ms.
+- Authenticated live load smoke — 3,000 requests in 5.04 seconds, 539.21
+  requests/s average, 93 ms p99, 96 ms maximum, no reported errors/timeouts.
+- Final live state after QA: one mounted replica, zero active holds, preserved
+  original data plus two isolated repair-verification SKUs/outcomes created by
+  the live conversion checks.
+
+## Run and deploy
 
 ```sh
 npm ci
+npm test
+npm run check
 npm run build
+npm run test:e2e
 cargo build --release --locked
+
+/opt/fleet/lib/deploy-container.sh inventory-promise-hold . Dockerfile 8080
+deploy/ensure-persistent-data.sh inventory-promise-hold
 ```
 
-The frontend build lands in `dist/`; the Rust release binary is
-`target/release/stock-promise`. Verified locally:
+After deployment, assert that `/health.build_sha` equals `git rev-parse HEAD`,
+the template has min/max replicas `1`, and `/data` is mounted from
+`data-inventory-promise-hold`.
 
-- `npm test` — passed (1 Vitest test, 3 Rust tests, including a real concurrent
-  scarce-stock race and immutable audit assertion).
-- `npm run check` — passed with 0 Svelte/TypeScript diagnostics and Clippy at
-  `-D warnings`.
-- `npm run test:e2e` — 2/2 Playwright 1.58.2 tests passed at 390×844. Covers
-  setup → stock → hold → conversion → audit → CSV download, legal navigation,
-  one-H1/landmark checks, and zero browser console errors.
-- Playwright axe 4.10.2 — 0 serious or critical violations on the operating desk
-  and privacy page.
-- `/opt/fleet/lib/verify-url.sh` — passed: HTTP 200, title, `lang=en`, one H1,
-  main landmark, all images with alt, all buttons named, zero console errors;
-  measured load 640 ms on the local release service.
-- Lighthouse 13.0.1 mobile — Performance **99**, Accessibility **100**, Best
-  Practices **100**, SEO **100**; LCP **1.8 s**, CLS **0.001**, TBT **0 ms**.
-- Bundle — initial JS 74.29 KB raw / 27.69 KB gzip; CSS 18.29 KB raw / 5.01
-  KB gzip; full built static directory 216 KB; no font payload.
-- Load smoke (`autocannon`, 20 connections, 5 seconds) — 1,054.6 requests/s,
-  47 ms p99, 0 errors, 0 timeouts, 0 non-2xx responses on `/api/bootstrap`.
-- The optimized binary was started with an empty environment. It served
-  `/health` and the frontend successfully on the default port and database path.
+## Known operational constraint
 
-Docker itself is not installed in the worker image, so `docker build` could not
-be executed locally. Both build stages were independently exercised with the
-same locked commands used by the Dockerfile.
-
-## Operations
-
-Mount a persistent writable volume at `/data`. Back up the SQLite database and
-its WAL consistently. Optional environment overrides: `PORT`, `DATABASE_PATH`,
-`FRONTEND_DIR`, `BUILD_SHA`, and `RUST_LOG`; none is required in the container.
-The health route returns `{ "status": "ok", "build_sha": "…" }`.
-
-The factory still needs to register `inventory-promise-hold` with Sociobot
-billing and configure its return URL. No product ID or payment-provider secret
-is embedded in this repository.
-
-## Deliberate limits / next steps
-
-- V1 is one location and one supervisor PIN, matching the researched scope.
-  Named staff accounts, roles, and multi-location forecasting are intentionally
-  absent.
-- CSV import supports the documented simple three-column format; fields that
-  contain commas are not supported. Export uses a full CSV writer and safely
-  quotes arbitrary operational text.
-- Pro notifications are browser-local and require the app to be open. A later
-  hosted subscription could add background email/web-push delivery and named
-  accounts after the pilot validates demand.
-- A forgotten supervisor PIN currently requires an operator with database host
-  access to reset the installation. Add a documented recovery command before
-  deploying to teams without technical administration.
-- The brief describes subscription economics, while the supplied paid-unlock
-  contract specifies a one-time purchase flow. V1 follows that required
-  contract and states the price plainly.
+The factory's generic container deploy template intentionally knows nothing
+about product storage and replaces the volume stanza. Always run the checked-in
+`deploy/ensure-persistent-data.sh` immediately after the generic deploy. Stock
+Promise is intentionally one SQLite-backed replica; do not raise the replica
+count without first moving shared state to PostgreSQL.
