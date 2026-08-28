@@ -50,6 +50,7 @@
       sendReminders();
       if (data?.active_holds.some((hold) => hold.expires_at * 1000 <= now)) load(true);
     }, 30_000);
+    const sync = window.setInterval(() => { if (navigator.onLine && !busy) load(true); }, 15_000);
     const handleOnline = () => { online = true; load(true); };
     const handleOffline = () => online = false;
     window.addEventListener('online', handleOnline);
@@ -57,6 +58,7 @@
     window.addEventListener('popstate', () => path = window.location.pathname);
     return () => {
       clearInterval(clock);
+      clearInterval(sync);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
@@ -133,11 +135,12 @@
 
   async function saveInventory(event: SubmitEvent) {
     busy = 'inventory'; formError = '';
+    const wasEditing = Boolean(editingItem);
     const values = Object.fromEntries(new FormData(event.currentTarget as HTMLFormElement));
     const payload = { ...values, on_hand: Number(values.on_hand) };
     try {
       await request(editingItem ? `/api/inventory/${editingItem.id}` : '/api/inventory', { method: 'POST', body: JSON.stringify(payload) }, true);
-      closeModal(); announcement = editingItem ? 'Stock record updated.' : 'Stock item added.';
+      closeModal(); announcement = wasEditing ? 'Stock record updated.' : 'Stock item added.';
       await load(true);
     } catch (error) { formError = message(error); supervisor = Boolean(getSession()); }
     finally { busy = ''; }
@@ -160,6 +163,7 @@
   async function resolve(hold: Hold, action: 'convert' | 'release') {
     if (!supervisor) { openModal('unlock'); return; }
     if (action === 'release' && !confirm(`Release ${hold.quantity} × ${hold.sku} held for ${hold.customer}? The stock will become available immediately.`)) return;
+    if (action === 'convert' && !confirm(`Convert ${hold.quantity} × ${hold.sku} for ${hold.customer}? This permanently deducts the units from on-hand stock.`)) return;
     busy = hold.id; formError = '';
     try {
       await request(`/api/holds/${hold.id}/resolve`, { method: 'POST', body: JSON.stringify({ action, actor: supervisorName || 'Supervisor' }) }, true);

@@ -1,0 +1,20 @@
+{
+  "slug": "inventory-promise-hold",
+  "title": "Stock Promise",
+  "territory": "utilities",
+  "user": "A small distributor or reseller taking orders in parallel who needs to avoid promising the same scarce item twice while an order is still being entered.",
+  "smallest_useful_product": "A small local-network web app for a shared SKU list: staff create a timed, visible soft hold with customer/order note; a supervisor converts, releases, or expires it; CSV export records the outcome.",
+  "success_measure": "Across a two-week pilot, 95% of contested SKUs are either converted or released before expiry, with zero known duplicate promises for held stock.",
+  "artifact_class": "web-with-backend",
+  "monetization": "subscription — reliable shared live holds, accounts, and expiry notifications require a hosted coordination service.",
+  "constraints": "Use atomic server-side hold creation and expiry; avoid presenting soft holds as legal reservations; maintain an append-only audit log; scope v1 to a single location.",
+  "non_goals": [
+    "e-commerce storefronts",
+    "warehouse management",
+    "purchasing",
+    "accounting sync",
+    "multi-warehouse forecasting"
+  ],
+  "confidence": 3,
+  "state": "RESEARCHED"
+}

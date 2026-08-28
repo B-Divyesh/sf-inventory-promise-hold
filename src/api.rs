@@ -767,7 +767,8 @@ fn validate_stock(value: i64) -> Result<(), ApiError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sqlx::sqlite::SqlitePoolOptions;
+    use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+    use std::time::Duration;
 
     async fn state() -> AppState {
         let pool = SqlitePoolOptions::new()
@@ -784,31 +785,55 @@ mod tests {
 
     #[tokio::test]
     async fn hold_creation_is_atomic_against_available_stock() {
-        let state = state().await;
-        sqlx::query("INSERT INTO inventory(sku,name,on_hand,created_at,updated_at) VALUES('RARE-1','Rare part',3,0,0)").execute(&state.pool).await.unwrap();
-        let first = HoldInput {
-            inventory_id: 1,
-            quantity: 2,
-            customer: "North shop".into(),
-            order_note: None,
-            operator_name: "Asha".into(),
-            duration_minutes: 30,
-        };
-        let _ = create_hold(State(state.clone()), Json(first))
+        let directory = tempfile::tempdir().unwrap();
+        let options = SqliteConnectOptions::new()
+            .filename(directory.path().join("race.db"))
+            .create_if_missing(true)
+            .busy_timeout(Duration::from_secs(5));
+        let pool = SqlitePoolOptions::new()
+            .max_connections(4)
+            .connect_with(options)
             .await
             .unwrap();
-        let second = HoldInput {
-            inventory_id: 1,
-            quantity: 2,
-            customer: "South shop".into(),
-            order_note: None,
-            operator_name: "Ben".into(),
-            duration_minutes: 30,
+        crate::db::migrate(&pool).await.unwrap();
+        let state = AppState {
+            pool,
+            build_sha: "test".into(),
         };
-        let error = create_hold(State(state.clone()), Json(second))
-            .await
-            .unwrap_err();
-        assert!(matches!(error, ApiError::Conflict(_)));
+        sqlx::query("INSERT INTO inventory(sku,name,on_hand,created_at,updated_at) VALUES('RARE-1','Rare part',3,0,0)").execute(&state.pool).await.unwrap();
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(3));
+        let attempt = |customer: &'static str, operator: &'static str| {
+            let state = state.clone();
+            let barrier = barrier.clone();
+            tokio::spawn(async move {
+                barrier.wait().await;
+                create_hold(
+                    State(state),
+                    Json(HoldInput {
+                        inventory_id: 1,
+                        quantity: 2,
+                        customer: customer.into(),
+                        order_note: None,
+                        operator_name: operator.into(),
+                        duration_minutes: 30,
+                    }),
+                )
+                .await
+            })
+        };
+        let first = attempt("North shop", "Asha");
+        let second = attempt("South shop", "Ben");
+        barrier.wait().await;
+        let (first, second) = tokio::join!(first, second);
+        let results = [first.unwrap(), second.unwrap()];
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| matches!(result, Err(ApiError::Conflict(_))))
+                .count(),
+            1
+        );
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM holds WHERE status='active'")
             .fetch_one(&state.pool)
             .await
@@ -851,6 +876,10 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(event, "hold.converted");
+        let deletion = sqlx::query("DELETE FROM audit_log")
+            .execute(&state.pool)
+            .await;
+        assert!(deletion.is_err(), "audit rows must be immutable");
     }
 
     #[test]

@@ -40,6 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filename(&database_path)
         .create_if_missing(true)
         .foreign_keys(true)
+        .busy_timeout(std::time::Duration::from_secs(5))
         .journal_mode(SqliteJournalMode::Wal);
     let pool = SqlitePoolOptions::new()
         .max_connections(8)
@@ -52,6 +53,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pool,
         build_sha: env::var("BUILD_SHA").unwrap_or_else(|_| "development".into()),
     };
+    let expiry_pool = state.pool.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+        loop {
+            interval.tick().await;
+            if let Err(error) = db::expire_due(&expiry_pool).await {
+                tracing::warn!(%error, "automatic expiry sweep failed");
+            }
+        }
+    });
     let frontend = PathBuf::from(env::var("FRONTEND_DIR").unwrap_or_else(|_| "dist".into()));
     let app = build_app(state, frontend);
     let address = SocketAddr::from(([0, 0, 0, 0], port));
@@ -87,7 +98,7 @@ pub fn build_app(state: AppState, frontend: PathBuf) -> Router {
         ))
         .layer(SetResponseHeaderLayer::if_not_present(
             HeaderName::from_static("content-security-policy"),
-            HeaderValue::from_static("default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in"),
+            HeaderValue::from_static("default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in"),
         ))
         .with_state(state)
 }

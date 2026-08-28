@@ -7,9 +7,12 @@
     "dev": "vite --config frontend/vite.config.ts",
     "build": "vite build --config frontend/vite.config.ts",
     "test": "vitest run --config frontend/vite.config.ts && cargo test --quiet",
+    "test:e2e": "npm run build && rm -f target/stock-promise-e2e.db target/stock-promise-e2e.db-shm target/stock-promise-e2e.db-wal && playwright test",
     "check": "svelte-check --tsconfig frontend/tsconfig.json && cargo clippy --all-targets -- -D warnings"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "1.58.2",
     "@sveltejs/vite-plugin-svelte": "^6.2.1",
     "@testing-library/svelte": "^5.2.10",
     "jsdom": "^26.1.0",
@@ -20,4 +23,3 @@
     "vitest": "^3.2.4"
   }
 }
-

@@ -1,12 +1,9 @@
 use sqlx::{Row, SqlitePool};
 
 pub async fn migrate(pool: &SqlitePool) -> Result<(), sqlx::Error> {
-    for statement in include_str!("../migrations/0001_init.sql").split(';') {
-        let statement = statement.trim();
-        if !statement.is_empty() {
-            sqlx::query(statement).execute(pool).await?;
-        }
-    }
+    sqlx::raw_sql(include_str!("../migrations/0001_init.sql"))
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
