@@ -61,6 +61,8 @@ soft directional shadow suggest a physical tag laid across a stock ledger.
 
 ## Interaction grammar
 
+- **Enter:** a quiet, centered staff gate withholds every operational name and
+  count until the shared PIN is accepted; errors stay inline and preserve focus.
 - **Create:** a hold drawer enters from the inventory row that originated it.
 - **Commit:** successful holds receive one brief amber edge sweep, then settle.
 - **Resolve:** conversion recedes into the audit trail; release returns capacity
@@ -107,4 +109,3 @@ The output is original to this product. Source PNG and prompt sidecar live in
 `assets/src/`; responsive WebP derivatives live in `frontend/public/assets/`.
 The footer discloses AI-assisted imagery. Authored SVG interface icons are MIT
 licensed with the application.
-

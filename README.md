@@ -13,8 +13,9 @@ Live product: <https://inventory-promise-hold.sociobot.in>
 - Creates holds with an atomic SQLite write transaction and a current stock
   check, even when several operators act at once.
 - Expires holds on the server every 30 seconds and during relevant requests.
-- Protects stock changes, conversions, releases, audit history, and export with
-  a supervisor PIN. Sessions live only in the current browser tab.
+- Protects operational reads, hold creation, stock changes, conversions,
+  releases, audit history, and export with a shared supervisor PIN. Sessions
+  live only in the current browser tab, and unlock attempts are rate limited.
 - Records creates, changes, conversions, releases, and expiries in an
   append-only audit log.
 - Imports a simple `sku,name,on_hand` CSV and exports every hold outcome.
@@ -44,8 +45,23 @@ port 8080.
 
 The production container needs no configuration and listens on `PORT` (default
 8080). Its SQLite database is stored at `/data/stock-promise.db`. Mount `/data`
-on persistent storage. Optional overrides are `DATABASE_PATH`, `FRONTEND_DIR`,
-`BUILD_SHA`, and `RUST_LOG`; none is required.
+on persistent storage and run exactly one replica; multiple SQLite replicas do
+not share transactions. Optional overrides are `DATABASE_PATH`, `FRONTEND_DIR`,
+`BUILD_SHA`, and `RUST_LOG`; none is required. Factory builds pass `BUILD_SHA`
+as a build argument, which is baked into the image and returned by `/health`.
+
+For the factory Azure Container Apps target, deploy the image and immediately
+apply the checked-in durable-storage contract:
+
+```sh
+/opt/fleet/lib/deploy-container.sh inventory-promise-hold . Dockerfile 8080
+deploy/ensure-persistent-data.sh inventory-promise-hold
+```
+
+The second command creates/reuses the product's Azure Files share, mounts it at
+`/data`, and pins the app to one replica. It is required after each generic
+factory deployment because that generic template otherwise replaces the volume
+configuration.
 
 ## Test and verify
 
@@ -58,17 +74,19 @@ docker build -t stock-promise .
 docker run --rm -p 8080:8080 -v stock-promise-data:/data stock-promise
 ```
 
-Playwright is pinned to 1.58.2. The E2E test covers first-run setup, adding
-stock, creating a hold, conversion, the outcome ledger, mobile layout, semantic
-landmarks, legal navigation, and browser console errors.
+Playwright is pinned to 1.58.2. The E2E test covers first-run setup, the private
+access gate, throttled PIN failures, stock and hold lifecycle, response policy,
+desktop keyboard use, 390 px mobile layout, accessibility, legal deep links,
+touch-target geometry, and browser console errors.
 
 ## API outline
 
 - `GET /health` — health and build SHA
-- `GET /api/bootstrap` — location, live availability, holds, outcomes
+- `GET /api/status` — public first-run readiness without operational data
+- `GET /api/bootstrap` — guarded location, live availability, holds, and outcomes
 - `POST /api/setup`, `POST|DELETE /api/session` — first run and supervisor access
 - `POST /api/inventory`, `POST /api/inventory/:id` — guarded stock writes
-- `POST /api/holds` — atomic hold creation
+- `POST /api/holds` — guarded atomic hold creation
 - `POST /api/holds/:id/resolve` — guarded convert or release
 - `GET /api/audit`, `GET /api/export.csv` — guarded records
 

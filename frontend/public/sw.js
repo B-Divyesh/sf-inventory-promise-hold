@@ -1,4 +1,4 @@
-const CACHE = 'stock-promise-shell-v1';
+const CACHE = 'stock-promise-shell-v2';
 const SHELL = ['/', '/mark.svg', '/assets/stockroom-watch-640.webp'];
 self.addEventListener('install', (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL))));
 self.addEventListener('activate', (event) => event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))));
@@ -9,4 +9,3 @@ self.addEventListener('fetch', (event) => {
     return response;
   }).catch(() => caches.match(event.request).then((cached) => cached || caches.match('/'))));
 });
-

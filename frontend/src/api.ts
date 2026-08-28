@@ -35,6 +35,10 @@ export interface Bootstrap {
 
 const sessionKey = 'stock-promise:supervisor-session';
 
+export class ResponseError extends Error {
+  constructor(message: string, public status: number) { super(message); }
+}
+
 export function getSession(): string | null {
   return sessionStorage.getItem(sessionKey);
 }
@@ -44,14 +48,12 @@ export function setSession(token: string | null): void {
   else sessionStorage.removeItem(sessionKey);
 }
 
-export async function request<T>(path: string, init: RequestInit = {}, supervisor = false): Promise<T> {
+export async function request<T>(path: string, init: RequestInit = {}, access: 'none' | 'optional' | 'required' = 'none'): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has('content-type')) headers.set('content-type', 'application/json');
-  if (supervisor) {
-    const token = getSession();
-    if (!token) throw new Error('Unlock supervisor access to continue.');
-    headers.set('authorization', `Bearer ${token}`);
-  }
+  const token = getSession();
+  if (token && access !== 'none') headers.set('authorization', `Bearer ${token}`);
+  if (!token && access === 'required') throw new ResponseError('Enter the supervisor PIN to continue.', 401);
   let response: Response;
   try {
     response = await fetch(path, { ...init, headers });
@@ -61,9 +63,8 @@ export async function request<T>(path: string, init: RequestInit = {}, superviso
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     if (response.status === 401) setSession(null);
-    throw new Error(payload?.error || `The server returned ${response.status}. Try again.`);
+    throw new ResponseError(payload?.error || `The server returned ${response.status}. Try again.`, response.status);
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
-

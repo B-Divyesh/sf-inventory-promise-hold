@@ -16,6 +16,13 @@ test('sets up a location and completes the hold lifecycle on a phone', async ({ 
   await page.getByRole('button', { name: 'Open the promise desk' }).click();
   await expect(page.getByRole('heading', { name: 'No stock is listed yet' })).toBeVisible();
 
+  const anonymousBootstrap = await page.request.get('/api/bootstrap');
+  expect(anonymousBootstrap.status()).toBe(401);
+  const anonymousHold = await page.request.post('/api/holds', {
+    data: { inventory_id: 1, quantity: 1, customer: 'Intruder', operator_name: 'Unknown', duration_minutes: 30 },
+  });
+  expect(anonymousHold.status()).toBe(401);
+
   await page.getByRole('button', { name: 'Add first item' }).click();
   await page.getByLabel('SKU', { exact: true }).fill('FILTER-7');
   await page.getByLabel('Item name').fill('Water filter');
@@ -43,6 +50,14 @@ test('sets up a location and completes the hold lifecycle on a phone', async ({ 
   await expect(page.getByText('hold converted', { exact: true })).toBeVisible();
   const accessibility = await new AxeBuilder({ page }).analyze();
   expect(accessibility.violations.filter((item) => ['serious', 'critical'].includes(item.impact || ''))).toEqual([]);
+  const legalTargets = await page.locator('.site-footer nav a').evaluateAll((links) =>
+    links.map((link) => ({ width: link.getBoundingClientRect().width, height: link.getBoundingClientRect().height })),
+  );
+  expect(legalTargets.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
+
+  await page.getByRole('button', { name: 'Lock supervisor' }).click();
+  await expect(page.getByRole('heading', { name: 'Open the promise desk.' })).toBeVisible();
+  await expect(page.getByText('Northside Cafe')).toHaveCount(0);
   await expect(consoleErrors).toEqual([]);
 });
 
@@ -54,4 +69,69 @@ test('legal pages stay semantic and reachable', async ({ page }) => {
   expect(accessibility.violations.filter((item) => ['serious', 'critical'].includes(item.impact || ''))).toEqual([]);
   await page.getByRole('button', { name: 'Return to the promise desk' }).click();
   await expect(page).toHaveURL('/');
+});
+
+test('direct routes, cache policy, and security headers are production-safe', async ({ request }) => {
+  for (const route of ['/privacy', '/terms']) {
+    const response = await request.head(route);
+    expect(response.status()).toBe(200);
+    expect(response.headers()['cache-control']).toContain('no-cache');
+  }
+  const home = await request.get('/');
+  const assetPath = (await home.text()).match(/\/assets\/index-[^"']+\.js/)?.[0];
+  expect(assetPath).toBeTruthy();
+  const asset = await request.get(assetPath!);
+  expect(asset.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
+  const worker = await request.get('/sw.js');
+  expect(worker.headers()['cache-control']).toBe('no-cache, no-store, must-revalidate');
+  const health = await request.get('/health');
+  expect(health.headers()['cache-control']).toBe('no-store');
+  expect(health.headers()['strict-transport-security']).toContain('max-age=31536000');
+  expect(health.headers()['permissions-policy']).toContain('camera=()');
+});
+
+test('desktop keyboard access gate recovers from an invalid PIN', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await context.newPage();
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Open the promise desk.' })).toBeVisible();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/#main$/);
+
+  await page.getByLabel('Supervisor PIN').fill('000000');
+  await page.getByRole('button', { name: 'Open promise desk' }).click();
+  await expect(page.getByRole('alert')).toContainText('not correct');
+  await page.getByLabel('Supervisor PIN').fill('246810');
+  await page.getByRole('button', { name: 'Open promise desk' }).click();
+  await expect(page.getByRole('heading', { name: 'Promise desk' })).toBeVisible();
+  const deskAccessibility = await new AxeBuilder({ page }).analyze();
+  expect(deskAccessibility.violations.filter((item) => ['serious', 'critical'].includes(item.impact || ''))).toEqual([]);
+  await context.close();
+});
+
+test('390px reduced-motion shell updates and explains an offline reload', async ({ browser }) => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    reducedMotion: 'reduce',
+    serviceWorkers: 'allow',
+  });
+  const page = await context.newPage();
+  await page.goto('/', { waitUntil: 'networkidle' });
+  expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+  const script = await page.evaluate(async () => {
+    const registration = await navigator.serviceWorker.ready;
+    await registration.update();
+    return registration.active?.scriptURL;
+  });
+  expect(script).toBe('http://127.0.0.1:4178/sw.js');
+  await context.setOffline(true);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.getByText(/You’re offline/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: /promise desk can’t open yet/i })).toBeVisible();
+  await context.close();
 });

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { request, getSession, setSession, type Bootstrap, type InventoryItem, type Hold } from './api';
+  import { request, getSession, setSession, ResponseError, type Bootstrap, type InventoryItem, type Hold } from './api';
   import { buyUrl, captureLicense, checkLicense, storeLicense, type LicenseState } from './license';
   import { formatTime, relativeExpiry } from './time';
   import Legal from './Legal.svelte';
@@ -13,6 +13,7 @@
   let loading = true;
   let refreshing = false;
   let fatalError = '';
+  let accessRequired = false;
   let online = navigator.onLine;
   let tab: Tab = 'desk';
   let query = '';
@@ -73,10 +74,27 @@
   async function load(quiet = false) {
     if (quiet) refreshing = true; else loading = true;
     try {
-      data = await request<Bootstrap>('/api/bootstrap');
+      if (getSession()) {
+        data = await request<Bootstrap>('/api/bootstrap', {}, 'required');
+        accessRequired = false;
+      } else {
+        const status = await request<{ setup_required: boolean; server_time: number }>('/api/status');
+        if (status.setup_required) {
+          data = { setup_required: true, location_name: null, server_time: status.server_time, inventory: [], active_holds: [], recent_outcomes: [] };
+          accessRequired = false;
+        } else {
+          data = null;
+          accessRequired = true;
+        }
+      }
       fatalError = '';
     } catch (error) {
-      if (!data) fatalError = message(error);
+      if (error instanceof ResponseError && error.status === 401) {
+        data = null;
+        accessRequired = true;
+        supervisor = false;
+        fatalError = '';
+      } else if (!data) fatalError = message(error);
     } finally {
       loading = false;
       refreshing = false;
@@ -122,15 +140,16 @@
       const result = await request<{ token: string }>('/api/session', { method: 'POST', body: JSON.stringify(values) });
       setSession(result.token); supervisor = true; closeModal();
       announcement = 'Supervisor controls unlocked for this tab.';
+      await load(true);
       if (tab === 'settings') loadAudit();
     } catch (error) { formError = message(error); }
     finally { busy = ''; }
   }
 
   async function lockSupervisor() {
-    try { await request('/api/session', { method: 'DELETE' }, true); } catch { /* local lock still applies */ }
-    setSession(null); supervisor = false; auditEntries = [];
-    announcement = 'Supervisor controls locked.';
+    try { await request('/api/session', { method: 'DELETE' }, 'required'); } catch { /* local lock still applies */ }
+    setSession(null); supervisor = false; auditEntries = []; data = null; accessRequired = true;
+    announcement = 'Promise desk locked.';
   }
 
   async function saveInventory(event: SubmitEvent) {
@@ -139,7 +158,7 @@
     const values = Object.fromEntries(new FormData(event.currentTarget as HTMLFormElement));
     const payload = { ...values, on_hand: Number(values.on_hand) };
     try {
-      await request(editingItem ? `/api/inventory/${editingItem.id}` : '/api/inventory', { method: 'POST', body: JSON.stringify(payload) }, true);
+      await request(editingItem ? `/api/inventory/${editingItem.id}` : '/api/inventory', { method: 'POST', body: JSON.stringify(payload) }, 'required');
       closeModal(); announcement = wasEditing ? 'Stock record updated.' : 'Stock item added.';
       await load(true);
     } catch (error) { formError = message(error); supervisor = Boolean(getSession()); }
@@ -152,7 +171,7 @@
     const values = Object.fromEntries(new FormData(event.currentTarget as HTMLFormElement));
     const payload = { ...values, inventory_id: selectedItem.id, quantity: Number(values.quantity), duration_minutes: Number(values.duration_minutes) };
     try {
-      await request('/api/holds', { method: 'POST', body: JSON.stringify(payload) });
+      await request('/api/holds', { method: 'POST', body: JSON.stringify(payload) }, 'required');
       operatorName = String(values.operator_name); localStorage.setItem('stock-promise:operator', operatorName);
       closeModal(); announcement = `Hold created for ${values.customer}. ${payload.quantity} units are now protected.`;
       await load(true);
@@ -166,7 +185,7 @@
     if (action === 'convert' && !confirm(`Convert ${hold.quantity} × ${hold.sku} for ${hold.customer}? This permanently deducts the units from on-hand stock.`)) return;
     busy = hold.id; formError = '';
     try {
-      await request(`/api/holds/${hold.id}/resolve`, { method: 'POST', body: JSON.stringify({ action, actor: supervisorName || 'Supervisor' }) }, true);
+      await request(`/api/holds/${hold.id}/resolve`, { method: 'POST', body: JSON.stringify({ action, actor: supervisorName || 'Supervisor' }) }, 'required');
       if (supervisorName) localStorage.setItem('stock-promise:supervisor-name', supervisorName);
       announcement = action === 'convert' ? `Hold for ${hold.customer} converted. Stock count reduced.` : `Hold for ${hold.customer} released. Stock is available again.`;
       await load(true);
@@ -201,7 +220,7 @@
       for (const [offset, line] of lines.slice(1).entries()) {
         const cells = line.split(',').map((value) => value.trim().replace(/^"|"$/g, ''));
         try {
-          await request('/api/inventory', { method: 'POST', body: JSON.stringify({ sku: cells[indexes[0]], name: cells[indexes[1]], on_hand: Number(cells[indexes[2]]) }) }, true);
+          await request('/api/inventory', { method: 'POST', body: JSON.stringify({ sku: cells[indexes[0]], name: cells[indexes[1]], on_hand: Number(cells[indexes[2]]) }) }, 'required');
           imported++;
         } catch (error) { failures.push(`Row ${offset + 2}: ${message(error)}`); }
       }
@@ -246,7 +265,7 @@
 
   async function loadAudit() {
     if (!supervisor) return;
-    try { auditEntries = (await request<{ entries: Array<Record<string, any>> }>('/api/audit', {}, true)).entries; }
+    try { auditEntries = (await request<{ entries: Array<Record<string, any>> }>('/api/audit', {}, 'required')).entries; }
     catch (error) { announcement = message(error); supervisor = Boolean(getSession()); }
   }
 
@@ -283,6 +302,18 @@
   {#if loading}
     <main id="main" class="loading-state" aria-busy="true">
       <p class="eyebrow">Opening the stockroom</p><h1>Finding today’s promises…</h1><div class="loader"></div>
+    </main>
+  {:else if accessRequired}
+    <main id="main" class="center-state access-gate">
+      <p class="eyebrow">Staff access</p>
+      <h1>Open the promise desk.</h1>
+      <p>Operational stock and customer references are private to this location. Enter the shared supervisor PIN to continue.</p>
+      <form onsubmit={(event) => { event.preventDefault(); unlock(event); }}>
+        <label for="access-pin">Supervisor PIN <span>6–12 digits</span></label>
+        <input id="access-pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]+" minlength="6" maxlength="12" autocomplete="current-password" required />
+        {#if formError}<p class="form-error" role="alert">{formError}</p>{/if}
+        <button class="primary-button" disabled={busy === 'unlock'}>{busy === 'unlock' ? 'Opening desk…' : 'Open promise desk'}</button>
+      </form>
     </main>
   {:else if fatalError}
     <main id="main" class="center-state">

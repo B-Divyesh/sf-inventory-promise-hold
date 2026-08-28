@@ -63,3 +63,66 @@ pub async fn expire_due(pool: &SqlitePool) -> Result<u64, sqlx::Error> {
     tx.commit().await?;
     Ok(count)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+
+    async fn open(path: &std::path::Path) -> SqlitePool {
+        SqlitePoolOptions::new()
+            .max_connections(2)
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(path)
+                    .create_if_missing(true)
+                    .journal_mode(SqliteJournalMode::Wal),
+            )
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn location_inventory_and_audit_survive_pool_restart() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("persistent.db");
+        let pool = open(&path).await;
+        migrate(&pool).await.unwrap();
+        ensure_instance_id(&pool, "stable-instance").await.unwrap();
+        sqlx::query("INSERT INTO settings(singleton,location_name,supervisor_pin_hash,created_at) VALUES(1,'Persistent stockroom','hash',1)")
+            .execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO inventory(sku,name,on_hand,created_at,updated_at) VALUES('KEEP-1','Retained item',7,1,1)")
+            .execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO audit_log(event,entity_type,entity_id,actor,details_json,created_at) VALUES('inventory.created','inventory','1','Supervisor','{}',1)")
+            .execute(&pool).await.unwrap();
+        pool.close().await;
+
+        let reopened = open(&path).await;
+        migrate(&reopened).await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT location_name FROM settings WHERE singleton=1")
+                .fetch_one(&reopened)
+                .await
+                .unwrap(),
+            "Persistent stockroom"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT on_hand FROM inventory WHERE sku='KEEP-1'")
+                .fetch_one(&reopened)
+                .await
+                .unwrap(),
+            7
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM audit_log")
+                .fetch_one(&reopened)
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            ensure_instance_id(&reopened, "replacement").await.unwrap(),
+            "existing"
+        );
+    }
+}

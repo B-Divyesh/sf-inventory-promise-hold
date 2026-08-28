@@ -7,7 +7,7 @@ use argon2::{
 };
 use axum::{
     body::Body,
-    extract::{Path, State},
+    extract::{ConnectInfo, Path, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -18,6 +18,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use sqlx::{Row, SqlitePool};
+use std::{
+    collections::{HashMap, VecDeque},
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use uuid::Uuid;
 
 use crate::db;
@@ -26,6 +33,65 @@ use crate::db;
 pub struct AppState {
     pub pool: SqlitePool,
     pub build_sha: String,
+    login_guard: Arc<LoginGuard>,
+}
+
+impl AppState {
+    pub fn new(pool: SqlitePool, build_sha: String) -> Self {
+        Self {
+            pool,
+            build_sha,
+            login_guard: Arc::new(LoginGuard::new()),
+        }
+    }
+}
+
+struct LoginGuard {
+    attempts: Mutex<LoginAttempts>,
+    concurrent: Arc<Semaphore>,
+}
+
+#[derive(Default)]
+struct LoginAttempts {
+    global: VecDeque<Instant>,
+    clients: HashMap<String, VecDeque<Instant>>,
+}
+
+impl LoginGuard {
+    fn new() -> Self {
+        Self {
+            attempts: Mutex::new(LoginAttempts::default()),
+            concurrent: Arc::new(Semaphore::new(4)),
+        }
+    }
+
+    fn begin(&self, client: &str) -> Result<OwnedSemaphorePermit, ApiError> {
+        let permit = self
+            .concurrent
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| ApiError::TooManyRequests)?;
+        let now = Instant::now();
+        let window = Duration::from_secs(60);
+        let mut attempts = self
+            .attempts
+            .lock()
+            .unwrap_or_else(|lock| lock.into_inner());
+        attempts
+            .global
+            .retain(|time| now.duration_since(*time) < window);
+        if attempts.global.len() >= 30 {
+            return Err(ApiError::TooManyRequests);
+        }
+        let client_attempts = attempts.clients.entry(client.to_owned()).or_default();
+        client_attempts.retain(|time| now.duration_since(*time) < window);
+        if client_attempts.len() >= 10 {
+            return Err(ApiError::TooManyRequests);
+        }
+        client_attempts.push_back(now);
+        attempts.global.push_back(now);
+        Ok(permit)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -38,6 +104,8 @@ pub enum ApiError {
     NotFound(String),
     #[error("{0}")]
     Conflict(String),
+    #[error("Too many unlock attempts. Wait one minute and try again.")]
+    TooManyRequests,
     #[error("The server could not complete that action. Try again.")]
     Internal(#[from] sqlx::Error),
 }
@@ -49,14 +117,22 @@ impl IntoResponse for ApiError {
             Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Conflict(_) => StatusCode::CONFLICT,
+            Self::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
-        (status, Json(json!({ "error": self.to_string() }))).into_response()
+        let mut response = (status, Json(json!({ "error": self.to_string() }))).into_response();
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            response
+                .headers_mut()
+                .insert(header::RETRY_AFTER, HeaderValue::from_static("60"));
+        }
+        response
     }
 }
 
 pub fn routes() -> Router<AppState> {
     Router::new()
+        .route("/status", get(status))
         .route("/bootstrap", get(bootstrap))
         .route("/setup", post(setup))
         .route("/session", post(login).delete(logout))
@@ -80,6 +156,12 @@ struct Bootstrap {
     inventory: Vec<InventoryView>,
     active_holds: Vec<HoldView>,
     recent_outcomes: Vec<HoldView>,
+}
+
+#[derive(Serialize)]
+struct SetupStatus {
+    setup_required: bool,
+    server_time: i64,
 }
 
 #[derive(Serialize)]
@@ -109,7 +191,21 @@ struct HoldView {
     resolved_by: Option<String>,
 }
 
-async fn bootstrap(State(state): State<AppState>) -> Result<Json<Bootstrap>, ApiError> {
+async fn status(State(state): State<AppState>) -> Result<Json<SetupStatus>, ApiError> {
+    let setting = sqlx::query("SELECT location_name FROM settings WHERE singleton = 1")
+        .fetch_optional(&state.pool)
+        .await?;
+    Ok(Json(SetupStatus {
+        setup_required: setting.is_none(),
+        server_time: db::now(),
+    }))
+}
+
+async fn bootstrap(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Bootstrap>, ApiError> {
+    require_supervisor(&state.pool, &headers).await?;
     db::expire_due(&state.pool).await?;
     let setting = sqlx::query("SELECT location_name FROM settings WHERE singleton = 1")
         .fetch_optional(&state.pool)
@@ -238,8 +334,12 @@ struct LoginInput {
 
 async fn login(
     State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Json(input): Json<LoginInput>,
 ) -> Result<Json<SessionOutput>, ApiError> {
+    let client = client_identity(peer, &headers);
+    let _attempt = state.login_guard.begin(&client)?;
     let row = sqlx::query("SELECT supervisor_pin_hash FROM settings WHERE singleton = 1")
         .fetch_optional(&state.pool)
         .await?
@@ -429,8 +529,10 @@ struct HoldText {
 
 async fn create_hold(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(input): Json<HoldInput>,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
+    require_supervisor(&state.pool, &headers).await?;
     if input.quantity <= 0 || input.quantity > 1_000_000 {
         return Err(ApiError::BadRequest(
             "Quantity must be between 1 and 1,000,000.".into(),
@@ -707,6 +809,21 @@ fn bearer(headers: &HeaderMap) -> Result<&str, ApiError> {
 fn token_hash(token: &str) -> String {
     hex(&Sha256::digest(token.as_bytes()))
 }
+
+fn client_identity(peer: SocketAddr, headers: &HeaderMap) -> String {
+    for name in ["x-envoy-external-address", "x-forwarded-for"] {
+        if let Some(ip) = headers
+            .get(name)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.split(',').next())
+            .map(str::trim)
+            .and_then(|value| value.parse::<std::net::IpAddr>().ok())
+        {
+            return ip.to_string();
+        }
+    }
+    peer.ip().to_string()
+}
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -777,10 +894,17 @@ mod tests {
             .await
             .unwrap();
         crate::db::migrate(&pool).await.unwrap();
-        AppState {
-            pool,
-            build_sha: "test".into(),
-        }
+        AppState::new(pool, "test".into())
+    }
+
+    async fn auth_headers(state: &AppState) -> HeaderMap {
+        let session = create_session(&state.pool).await.unwrap();
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {}", session.token)).unwrap(),
+        );
+        headers
     }
 
     #[tokio::test]
@@ -796,19 +920,19 @@ mod tests {
             .await
             .unwrap();
         crate::db::migrate(&pool).await.unwrap();
-        let state = AppState {
-            pool,
-            build_sha: "test".into(),
-        };
+        let state = AppState::new(pool, "test".into());
+        let headers = auth_headers(&state).await;
         sqlx::query("INSERT INTO inventory(sku,name,on_hand,created_at,updated_at) VALUES('RARE-1','Rare part',3,0,0)").execute(&state.pool).await.unwrap();
         let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(3));
         let attempt = |customer: &'static str, operator: &'static str| {
             let state = state.clone();
             let barrier = barrier.clone();
+            let headers = headers.clone();
             tokio::spawn(async move {
                 barrier.wait().await;
                 create_hold(
                     State(state),
+                    headers,
                     Json(HoldInput {
                         inventory_id: 1,
                         quantity: 2,
@@ -853,7 +977,10 @@ mod tests {
             operator_name: "Lee".into(),
             duration_minutes: 30,
         };
-        let (_, Json(created)) = create_hold(State(state.clone()), Json(hold)).await.unwrap();
+        let headers = auth_headers(&state).await;
+        let (_, Json(created)) = create_hold(State(state.clone()), headers, Json(hold))
+            .await
+            .unwrap();
         let id = created["id"].as_str().unwrap();
         let mut conn = state.pool.acquire().await.unwrap();
         sqlx::query("BEGIN IMMEDIATE")
@@ -887,5 +1014,85 @@ mod tests {
         assert!(normalize_sku("bad sku!").is_err());
         assert!(validate_pin("1234").is_err());
         assert_eq!(normalize_sku(" ab-12 ").unwrap(), "AB-12");
+    }
+
+    #[test]
+    fn login_client_identity_uses_the_validated_proxy_address() {
+        let peer = "10.0.0.2:1234".parse().unwrap();
+        let mut headers = HeaderMap::new();
+        headers.insert("x-forwarded-for", "203.0.113.8, 10.0.0.2".parse().unwrap());
+        assert_eq!(client_identity(peer, &headers), "203.0.113.8");
+        headers.insert("x-envoy-external-address", "198.51.100.4".parse().unwrap());
+        assert_eq!(client_identity(peer, &headers), "198.51.100.4");
+    }
+
+    #[test]
+    fn login_guard_limits_each_client_and_concurrent_hashes() {
+        let guard = LoginGuard::new();
+        for _ in 0..10 {
+            drop(guard.begin("192.0.2.10").unwrap());
+        }
+        assert!(matches!(
+            guard.begin("192.0.2.10"),
+            Err(ApiError::TooManyRequests)
+        ));
+
+        let guard = LoginGuard::new();
+        for index in 0..30 {
+            drop(guard.begin(&format!("198.51.100.{index}")));
+        }
+        assert!(matches!(
+            guard.begin("203.0.113.1"),
+            Err(ApiError::TooManyRequests)
+        ));
+
+        let guard = LoginGuard::new();
+        let permits: Vec<_> = (0..4)
+            .map(|index| guard.begin(&format!("192.0.2.{index}")))
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert!(matches!(
+            guard.begin("192.0.2.99"),
+            Err(ApiError::TooManyRequests)
+        ));
+        drop(permits);
+    }
+
+    #[tokio::test]
+    async fn operational_data_and_holds_require_a_session() {
+        let state = state().await;
+        assert!(status(State(state.clone())).await.unwrap().0.setup_required);
+
+        sqlx::query("INSERT INTO settings(singleton,location_name,supervisor_pin_hash,created_at) VALUES(1,'Private stockroom','hash',0)")
+            .execute(&state.pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO inventory(sku,name,on_hand,created_at,updated_at) VALUES('PRIVATE-1','Customer item',2,0,0)")
+            .execute(&state.pool)
+            .await
+            .unwrap();
+        assert!(!status(State(state.clone())).await.unwrap().0.setup_required);
+
+        assert!(matches!(
+            bootstrap(State(state.clone()), HeaderMap::new()).await,
+            Err(ApiError::Unauthorized(_))
+        ));
+        let hold = HoldInput {
+            inventory_id: 1,
+            quantity: 1,
+            customer: "Private customer".into(),
+            order_note: None,
+            operator_name: "Operator".into(),
+            duration_minutes: 30,
+        };
+        assert!(matches!(
+            create_hold(State(state.clone()), HeaderMap::new(), Json(hold)).await,
+            Err(ApiError::Unauthorized(_))
+        ));
+
+        let authenticated = bootstrap(State(state.clone()), auth_headers(&state).await)
+            .await
+            .unwrap();
+        assert_eq!(authenticated.0.inventory.len(), 1);
     }
 }
