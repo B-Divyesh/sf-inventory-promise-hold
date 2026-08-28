@@ -104,16 +104,26 @@ Chromium 145.
   reduced motion, service-worker update/offline reload, anonymous denial,
   legal routes, response policy, and exact build identity.
 - Factory live URL verification passed with HTTP 200, complete semantics and
-  labels, desktop/mobile screenshots, and zero console errors.
-- Live Lighthouse 13 mobile passed the required performance and accessibility
-  budgets.
-- Authenticated post-deploy load generated at least 3,000 requests at more
-  than 100 requests/second with no transport or HTTP failures. Repeated status
-  and authenticated bootstrap sampling observed one consistent initialized
-  location and no replica-local authorization failures.
-- A controlled live revision restart retained the same location, inventory,
-  holds/outcomes, audit counts, and instance identity; topology remained one
-  ready replica with the Azure Files `/data` mount afterward.
+  labels, desktop/mobile screenshots, and zero console errors (602 ms load).
+- Live Lighthouse 13 mobile — Performance 100, Accessibility 100, Best
+  Practices 100, SEO 100; FCP 1,351 ms, LCP 1,406 ms, TBT 5 ms, CLS 0.
+- An authenticated consistency load completed 3,000/3,000 bootstrap requests
+  with zero HTTP/transport failures at 71.24 requests/s and observed only
+  location `QA candidate e826a45`. A separate controlled 100 requests/s health
+  smoke completed 1,559/1,559 HTTP 200 responses at 103.94 requests/s average,
+  5.87 ms average / 40 ms p99 latency, and zero errors or timeouts.
+- After load, 120 status samples all returned initialized, 60 authenticated
+  bootstrap samples all returned 200 and the same location, and 30 health
+  samples all returned the release SHA. This directly reverses QA-01's mixed
+  setup states and 41/60 replica-local authorization failures.
+- A controlled restart of revision `sf-inventory-promise-hold--0000017`
+  retained byte-identical canonical bootstrap and audit payloads. Post-restart
+  evidence: bootstrap SHA-256
+  `571478c966144c5060105009e3a6a0d727e9fd56e16b1d727e265706a04eb32a`,
+  audit SHA-256
+  `1a6fc39527f3b916ca5b3dc2b83b00a3a6e35ae26d4ec71d71c8d96b170e6688`,
+  9 inventory rows, 0 active holds, and 8 outcomes. Topology remained one ready
+  replica with the Azure Files `/data` mount.
 
 ## Run, verify, and deploy
 
