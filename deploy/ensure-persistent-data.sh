@@ -12,6 +12,7 @@ app_name="sf-${slug}"
 share_name="sf-${slug}"
 storage_name="data-${slug}"
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+readiness_attempts=${PERSISTENT_READY_ATTEMPTS:-120}
 
 [[ "$slug" =~ ^[a-z0-9]([a-z0-9-]{0,40}[a-z0-9])?$ ]] || {
   echo "Invalid product slug: $slug" >&2
@@ -68,7 +69,7 @@ az rest --method patch \
   --output none
 
 ready=false
-for _ in $(seq 1 30); do
+for _ in $(seq 1 "$readiness_attempts"); do
   revision_state=$(az containerapp show \
     --subscription "$subscription" \
     --resource-group "$resource_group" \
@@ -84,7 +85,7 @@ for _ in $(seq 1 30); do
 done
 
 if [[ "$ready" != true ]]; then
-  echo "Timed out waiting for the durable revision to become ready." >&2
+  echo "Timed out waiting for the durable revision to become ready after $((readiness_attempts * 5)) seconds." >&2
   exit 1
 fi
 

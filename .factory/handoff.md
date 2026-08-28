@@ -36,7 +36,9 @@ its readiness loop timed out or when the final topology was unsafe.
   both exactly one, the named volume is Azure Files, and the `app` container
   mounts that volume at `/data`.
 - Changed `deploy/ensure-persistent-data.sh` to fail on readiness timeout and
-  call the same topology verifier rather than merely print Azure state.
+  call the same topology verifier rather than merely print Azure state. Its
+  bounded readiness window is ten minutes because this mounted replacement
+  took approximately three minutes to become ready in the repair rollout.
 - Updated deployment documentation so there is one supported release command,
   not a separable two-command procedure.
 - Added executable Node regressions that accept the correct topology, reject
