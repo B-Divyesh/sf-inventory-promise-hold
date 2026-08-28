@@ -13,6 +13,8 @@ test('runtime startup does not request an exclusive SQLite journal-mode change',
   const main = await readFile(new URL('../src/main.rs', import.meta.url), 'utf8');
   assert.doesNotMatch(main, /\.journal_mode\(/);
   assert.match(main, /prepare_schema/);
+  assert.match(main, /connect_lazy_with/);
+  assert.match(main, /from_secs\(15\)/);
 });
 
 test('deployment pins SQLite to one replica on an Azure Files mount', async () => {

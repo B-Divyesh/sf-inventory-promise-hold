@@ -45,17 +45,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::fs::create_dir_all(parent)?;
     }
 
+    let database_exists = std::fs::metadata(&database_path)
+        .map(|metadata| metadata.len() > 0)
+        .unwrap_or(false);
     let options = SqliteConnectOptions::new()
         .filename(&database_path)
         .create_if_missing(true)
         .foreign_keys(true)
         .busy_timeout(std::time::Duration::from_secs(5));
-    let pool = SqlitePoolOptions::new()
-        .max_connections(8)
-        .connect_with(options)
-        .await?;
-    let schema_status = db::prepare_schema(&pool).await?;
-    let instance_status = db::ensure_instance_id(&pool, &Uuid::new_v4().to_string()).await?;
+    let (pool, schema_status, instance_status) = if database_exists {
+        (
+            SqlitePoolOptions::new()
+                .max_connections(8)
+                .connect_lazy_with(options),
+            "existing (connection deferred)",
+            "existing",
+        )
+    } else {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(8)
+            .connect_with(options)
+            .await?;
+        let schema_status = db::prepare_schema(&pool).await?;
+        let instance_status = db::ensure_instance_id(&pool, &Uuid::new_v4().to_string()).await?;
+        (pool, schema_status, instance_status)
+    };
 
     let state = AppState::new(
         pool,
@@ -63,6 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let expiry_pool = state.pool.clone();
     tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(15)).await;
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
         loop {
             interval.tick().await;
