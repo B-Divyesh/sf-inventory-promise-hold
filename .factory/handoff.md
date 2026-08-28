@@ -1,4 +1,52 @@
-# Stock Promise — build handoff
+# Stock Promise — build and verification handoff
+
+## Independent verification — FAIL
+
+Work order: `inventory-promise-hold-verify-1`
+
+Verified candidate: `e826a4523441a78eeaf60f864a77ec0983f367be`
+
+Verified URL: <https://inventory-promise-hold.sociobot.in>
+
+Verified: 2026-08-28 UTC
+
+This candidate is **not approved for release**. Fresh independent verification
+found three release blockers:
+
+1. The live installation lost its location, inventory, holds, outcomes, and
+   audit state during the verification window. At 04:25 UTC the verifier
+   created and resolved live SKU `QA-C042539`; by 04:27 UTC bootstrap returned
+   `setup_required: true` and an entirely empty database. The local release
+   binary retained the same classes of data when restarted against a persisted
+   SQLite file.
+2. The public deployment permits unauthenticated reads of operational/customer
+   hold data and unauthenticated hold creation. That model is suitable only on
+   the brief's trusted local network, not on the public production origin.
+3. Live `/health` returns `{"build_sha":"development","status":"ok"}`.
+   Candidate frontend assets match byte-for-byte, but the backend identity
+   cannot be confirmed. The Dockerfile omits the required `ARG BUILD_SHA=dev`
+   propagation.
+
+Additional defects: no server-side PIN rate limit, direct `/privacy` and
+`/terms` requests return 404, production responses lack an explicit caching
+policy, two mobile legal links have sub-44px target height, and HSTS/Permissions
+Policy are absent.
+
+The candidate itself passed `npm ci`, `npm test` (1 frontend + 3 backend),
+`npm run check`, `npm run build`, `cargo build --release --locked`, and
+`npm run test:e2e` (2/2). Fresh live QA passed 4/4 browser checks with zero
+serious/critical axe findings and no console/page/request errors. Lighthouse
+mobile scored 94/100/100/100 with 1.829 s LCP and 0.00235 CLS. Live concurrency
+correctly returned one 201 and one 409, and a 3,189-request load smoke had zero
+errors. These passing results do not offset the persistence, access-boundary,
+and identity blockers.
+
+Full evidence and remediation requirements are in
+[`.factory/verification.md`](verification.md).
+
+---
+
+## Original builder handoff (historical)
 
 Work order: `inventory-promise-hold-build-1`
 
