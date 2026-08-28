@@ -50,17 +50,18 @@ not share transactions. Optional overrides are `DATABASE_PATH`, `FRONTEND_DIR`,
 `BUILD_SHA`, and `RUST_LOG`; none is required. Factory builds pass `BUILD_SHA`
 as a build argument, which is baked into the image and returned by `/health`.
 
-For the factory Azure Container Apps target, deploy the image and immediately
-apply the checked-in durable-storage contract:
+For the factory Azure Container Apps target, use the repository-owned release
+entry point:
 
 ```sh
-/opt/fleet/lib/deploy-container.sh inventory-promise-hold . Dockerfile 8080
-deploy/ensure-persistent-data.sh inventory-promise-hold
+npm run deploy
 ```
 
-The second command creates/reuses the product's Azure Files share, mounts it at
-`/data`, and pins the app to one replica. It is required after each generic
-factory deployment because that generic template otherwise replaces the volume
+This command runs the factory container build/deploy, creates or reuses the
+product's Azure Files share, mounts it at `/data`, pins the app to one replica,
+and fails unless Azure reports that exact ready topology and `/health` reports
+the committed source SHA. It also refuses a dirty source tree. Do not invoke
+the generic deploy command directly: its template replaces the volume
 configuration.
 
 ## Test and verify

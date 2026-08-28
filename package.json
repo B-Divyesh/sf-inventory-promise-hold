@@ -8,7 +8,8 @@
     "build": "vite build --config frontend/vite.config.ts",
     "test": "vitest run --config frontend/vite.config.ts && node --test tests/contracts.test.mjs && cargo test --quiet",
     "test:e2e": "npm run build && rm -f target/stock-promise-e2e.db target/stock-promise-e2e.db-shm target/stock-promise-e2e.db-wal && playwright test",
-    "check": "svelte-check --tsconfig frontend/tsconfig.json && cargo clippy --all-targets -- -D warnings"
+    "check": "svelte-check --tsconfig frontend/tsconfig.json && cargo clippy --all-targets -- -D warnings",
+    "deploy": "deploy/release.sh inventory-promise-hold"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",

@@ -11,6 +11,7 @@ subscription=${AZURE_SUBSCRIPTION_ID:?AZURE_SUBSCRIPTION_ID is required}
 app_name="sf-${slug}"
 share_name="sf-${slug}"
 storage_name="data-${slug}"
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 [[ "$slug" =~ ^[a-z0-9]([a-z0-9-]{0,40}[a-z0-9])?$ ]] || {
   echo "Invalid product slug: $slug" >&2
@@ -66,6 +67,7 @@ az rest --method patch \
   --body "$(jq -n --argjson template "$template" '{properties:{template:$template}}')" \
   --output none
 
+ready=false
 for _ in $(seq 1 30); do
   revision_state=$(az containerapp show \
     --subscription "$subscription" \
@@ -75,14 +77,15 @@ for _ in $(seq 1 30); do
   latest_revision=$(awk '{print $1}' <<<"$revision_state")
   ready_revision=$(awk '{print $2}' <<<"$revision_state")
   if [[ -n "$latest_revision" && "$latest_revision" == "$ready_revision" ]]; then
+    ready=true
     break
   fi
   sleep 5
 done
 
-az containerapp show \
-  --subscription "$subscription" \
-  --resource-group "$resource_group" \
-  --name "$app_name" \
-  --query '{revision:properties.latestReadyRevisionName,minReplicas:properties.template.scale.minReplicas,maxReplicas:properties.template.scale.maxReplicas,volumes:properties.template.volumes,mounts:properties.template.containers[0].volumeMounts}' \
-  --output json
+if [[ "$ready" != true ]]; then
+  echo "Timed out waiting for the durable revision to become ready." >&2
+  exit 1
+fi
+
+"$script_dir/verify-persistent-data.sh" "$slug"
