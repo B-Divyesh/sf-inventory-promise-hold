@@ -12,6 +12,7 @@ test('container bakes build identity and declares its durable data boundary', as
 test('runtime startup does not request an exclusive SQLite journal-mode change', async () => {
   const main = await readFile(new URL('../src/main.rs', import.meta.url), 'utf8');
   assert.doesNotMatch(main, /\.journal_mode\(/);
+  assert.match(main, /prepare_schema/);
 });
 
 test('deployment pins SQLite to one replica on an Azure Files mount', async () => {

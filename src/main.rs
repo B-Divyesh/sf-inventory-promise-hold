@@ -54,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .max_connections(8)
         .connect_with(options)
         .await?;
-    db::migrate(&pool).await?;
+    let schema_status = db::prepare_schema(&pool).await?;
     let instance_status = db::ensure_instance_id(&pool, &Uuid::new_v4().to_string()).await?;
 
     let state = AppState::new(
@@ -78,6 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!(
         port,
         database = %database_path,
+        schema = %schema_status,
         instance_identity = %instance_status,
         "configuration ready (PORT defaults to 8080; database and instance identity persist locally)"
     );

@@ -7,10 +7,31 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
+pub async fn prepare_schema(pool: &SqlitePool) -> Result<&'static str, sqlx::Error> {
+    let table_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('settings','inventory','holds','audit_log','sessions','app_meta')",
+    )
+    .fetch_one(pool)
+    .await?;
+    if table_count == 6 {
+        Ok("existing")
+    } else {
+        migrate(pool).await?;
+        Ok("migrated")
+    }
+}
+
 pub async fn ensure_instance_id(
     pool: &SqlitePool,
     candidate: &str,
 ) -> Result<&'static str, sqlx::Error> {
+    if sqlx::query("SELECT 1 FROM app_meta WHERE key = 'instance_id'")
+        .fetch_optional(pool)
+        .await?
+        .is_some()
+    {
+        return Ok("existing");
+    }
     let result = sqlx::query("INSERT OR IGNORE INTO app_meta(key, value) VALUES('instance_id', ?)")
         .bind(candidate)
         .execute(pool)
@@ -122,6 +143,20 @@ mod tests {
         );
         assert_eq!(
             ensure_instance_id(&reopened, "replacement").await.unwrap(),
+            "existing"
+        );
+        reopened.close().await;
+
+        let read_only = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(SqliteConnectOptions::new().filename(&path).read_only(true))
+            .await
+            .unwrap();
+        assert_eq!(prepare_schema(&read_only).await.unwrap(), "existing");
+        assert_eq!(
+            ensure_instance_id(&read_only, "must-not-write")
+                .await
+                .unwrap(),
             "existing"
         );
     }
