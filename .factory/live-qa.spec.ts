@@ -57,6 +57,7 @@ test('desktop keyboard lifecycle, invalid PIN recovery, and CSV', async ({ brows
   page.on('pageerror', (error) => pageErrors.push(error.message));
   await page.goto(base, { waitUntil: 'networkidle' });
   await enterDesk(page);
+  await page.reload({ waitUntil: 'networkidle' });
 
   await page.keyboard.press('Tab');
   expect(await page.evaluate(() => (document.activeElement as HTMLElement)?.textContent?.trim())).toBe('Skip to promise desk');

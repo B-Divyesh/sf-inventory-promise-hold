@@ -54,16 +54,31 @@ template=$(az containerapp show \
   --query properties.template -o json)
 template=$(jq \
   --arg storage "$storage_name" \
-  '.scale.minReplicas = 1 |
-   .scale.maxReplicas = 1 |
-   .volumes = [{name:"stock-promise-data",storageType:"AzureFile",storageName:$storage}] |
-   .containers |= map(if .name == "app" then .volumeMounts = [{volumeName:"stock-promise-data",mountPath:"/data"}] else . end)' \
+  '{containers: [.containers[] | select(.name == "app") |
+      {name, image, resources: {cpu: .resources.cpu, memory: .resources.memory}, env,
+       volumeMounts: [{volumeName:"stock-promise-data",mountPath:"/data"}]}],
+    scale: {minReplicas: 1, maxReplicas: 1},
+    volumes: [{name:"stock-promise-data",storageType:"AzureFile",storageName:$storage}]}' \
   <<<"$template")
 
 az rest --method patch \
   --url "https://management.azure.com/subscriptions/${subscription}/resourceGroups/${resource_group}/providers/Microsoft.App/containerApps/${app_name}?api-version=2024-03-01" \
   --body "$(jq -n --argjson template "$template" '{properties:{template:$template}}')" \
   --output none
+
+for _ in $(seq 1 30); do
+  revision_state=$(az containerapp show \
+    --subscription "$subscription" \
+    --resource-group "$resource_group" \
+    --name "$app_name" \
+    --query '[properties.latestRevisionName,properties.latestReadyRevisionName]' -o tsv)
+  latest_revision=$(awk '{print $1}' <<<"$revision_state")
+  ready_revision=$(awk '{print $2}' <<<"$revision_state")
+  if [[ -n "$latest_revision" && "$latest_revision" == "$ready_revision" ]]; then
+    break
+  fi
+  sleep 5
+done
 
 az containerapp show \
   --subscription "$subscription" \

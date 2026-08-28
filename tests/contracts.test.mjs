@@ -9,10 +9,14 @@ test('container bakes build identity and declares its durable data boundary', as
   assert.match(dockerfile, /VOLUME \["\/data"\]/);
 });
 
+test('runtime startup does not request an exclusive SQLite journal-mode change', async () => {
+  const main = await readFile(new URL('../src/main.rs', import.meta.url), 'utf8');
+  assert.doesNotMatch(main, /\.journal_mode\(/);
+});
+
 test('deployment pins SQLite to one replica on an Azure Files mount', async () => {
   const deployment = await readFile(new URL('../deploy/ensure-persistent-data.sh', import.meta.url), 'utf8');
-  assert.match(deployment, /\.scale\.minReplicas = 1/);
-  assert.match(deployment, /\.scale\.maxReplicas = 1/);
+  assert.match(deployment, /minReplicas: 1, maxReplicas: 1/);
   assert.match(deployment, /storageType:"AzureFile"/);
   assert.match(deployment, /mountPath:"\/data"/);
 });

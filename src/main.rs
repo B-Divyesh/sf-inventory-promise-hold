@@ -12,7 +12,7 @@ use axum::{
     routing::{get, get_service},
     Router,
 };
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use tower_http::{
     services::{ServeDir, ServeFile},
     set_header::SetResponseHeaderLayer,
@@ -49,8 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filename(&database_path)
         .create_if_missing(true)
         .foreign_keys(true)
-        .busy_timeout(std::time::Duration::from_secs(5))
-        .journal_mode(SqliteJournalMode::Wal);
+        .busy_timeout(std::time::Duration::from_secs(5));
     let pool = SqlitePoolOptions::new()
         .max_connections(8)
         .connect_with(options)
