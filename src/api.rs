@@ -421,6 +421,12 @@ struct HoldInput {
     duration_minutes: i64,
 }
 
+struct HoldText {
+    customer: String,
+    operator: String,
+    note: String,
+}
+
 async fn create_hold(
     State(state): State<AppState>,
     Json(input): Json<HoldInput>,
@@ -435,18 +441,17 @@ async fn create_hold(
             "Hold time must be between 5 minutes and 8 hours.".into(),
         ));
     }
-    let customer = required_text(&input.customer, "Customer", 120)?;
-    let operator = required_text(&input.operator_name, "Operator name", 80)?;
-    let note = limited_text(input.order_note.as_deref().unwrap_or(""), "Order note", 300)?;
+    let text = HoldText {
+        customer: required_text(&input.customer, "Customer", 120)?,
+        operator: required_text(&input.operator_name, "Operator name", 80)?,
+        note: limited_text(input.order_note.as_deref().unwrap_or(""), "Order note", 300)?,
+    };
     let now = db::now();
     let expires_at = now + input.duration_minutes * 60;
     let id = Uuid::new_v4().to_string();
     let mut conn = state.pool.acquire().await?;
     sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
-    let outcome = create_hold_locked(
-        &mut conn, &input, &id, &customer, &operator, &note, now, expires_at,
-    )
-    .await;
+    let outcome = create_hold_locked(&mut conn, &input, &id, &text, now, expires_at).await;
     match outcome {
         Ok(available_after) => {
             sqlx::query("COMMIT").execute(&mut *conn).await?;
@@ -468,9 +473,7 @@ async fn create_hold_locked(
     conn: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
     input: &HoldInput,
     id: &str,
-    customer: &str,
-    operator: &str,
-    note: &str,
+    text: &HoldText,
     now: i64,
     expires_at: i64,
 ) -> Result<i64, ApiError> {
@@ -494,11 +497,11 @@ async fn create_hold_locked(
         )));
     }
     sqlx::query("INSERT INTO holds(id, inventory_id, quantity, customer, order_note, operator_name, status, created_at, expires_at) VALUES(?, ?, ?, ?, ?, ?, 'active', ?, ?)")
-        .bind(id).bind(input.inventory_id).bind(input.quantity).bind(customer).bind(note).bind(operator).bind(now).bind(expires_at)
+        .bind(id).bind(input.inventory_id).bind(input.quantity).bind(&text.customer).bind(&text.note).bind(&text.operator).bind(now).bind(expires_at)
         .execute(&mut **conn).await?;
-    let details = json!({"sku": item.get::<String, _>("sku"), "item_name": item.get::<String, _>("name"), "quantity": input.quantity, "customer": customer, "expires_at": expires_at});
+    let details = json!({"sku": item.get::<String, _>("sku"), "item_name": item.get::<String, _>("name"), "quantity": input.quantity, "customer": text.customer, "expires_at": expires_at});
     sqlx::query("INSERT INTO audit_log(event, entity_type, entity_id, actor, details_json, created_at) VALUES('hold.created', 'hold', ?, ?, ?, ?)")
-        .bind(id).bind(operator).bind(details.to_string()).bind(now).execute(&mut **conn).await?;
+        .bind(id).bind(&text.operator).bind(details.to_string()).bind(now).execute(&mut **conn).await?;
     Ok(available - input.quantity)
 }
 
