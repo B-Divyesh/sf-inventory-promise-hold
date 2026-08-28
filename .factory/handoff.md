@@ -27,24 +27,25 @@ second persistence command, but that command was optional in practice and was
 not run for candidate `89db0bd`. The persistence helper also did not fail when
 its readiness loop timed out or when the final topology was unsafe.
 
-- Added `deploy/release.sh` and exposed it as `npm run deploy`. It runs the
-  generic image build/deploy, applies the durable storage contract, verifies
-  that contract, then checks the public `/health` identity. It refuses to
-  deploy a dirty tree.
+- Added `deploy/release.sh` and exposed it as `npm run deploy`. On an existing
+  installation it builds the image separately, then updates image, durable
+  storage, and one-replica scale in one revision; the unsafe generic template
+  is bootstrap-only. It verifies the storage contract and public `/health`
+  identity, and refuses to deploy a dirty tree.
 - Added `deploy/verify-persistent-data.sh`. It exits nonzero unless the app is
   successfully provisioned, latest equals latest-ready, min/max replicas are
   both exactly one, the named volume is Azure Files, and the `app` container
   mounts that volume at `/data`.
 - Changed `deploy/ensure-persistent-data.sh` to fail on readiness timeout and
   call the same topology verifier rather than merely print Azure state. Its
-  bounded readiness window is ten minutes because this mounted replacement
-  took approximately three minutes to become ready in the repair rollout.
+  bounded readiness window allows slow Azure Files replacement rollouts while
+  still terminating rather than reporting an unready release.
 - Updated deployment documentation so there is one supported release command,
   not a separable two-command procedure.
 - Added executable Node regressions that accept the correct topology, reject
-  QA-01's exact `maxReplicas: 3`/missing-volume state, and prove the release
-  entry point orders generic deploy, persistence, and verification before
-  checking live identity.
+  QA-01's exact `maxReplicas: 3`/missing-volume state, and prove an existing-app
+  release builds, applies persistence, and verifies without invoking the
+  generic deploy before checking live identity.
 
 Before deployment, the new verifier reproduced QA-01 against the live app and
 exited 1: revision `sf-inventory-promise-hold--0000011` reported min 1, max 3,

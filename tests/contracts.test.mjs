@@ -29,7 +29,8 @@ test('deployment pins SQLite to one replica on an Azure Files mount', async () =
   assert.match(deployment, /storageType:"AzureFile"/);
   assert.match(deployment, /mountPath:"\/data"/);
   assert.match(deployment, /verify-persistent-data\.sh/);
-  assert.match(deployment, /PERSISTENT_READY_ATTEMPTS:-120/);
+  assert.match(deployment, /PERSISTENT_READY_ATTEMPTS:-300/);
+  assert.match(deployment, /release_image/);
 });
 
 async function makeFakeAz(template) {
@@ -89,7 +90,7 @@ test('topology verifier rejects the split-brain deployment from QA-01', async ()
   );
 });
 
-test('release entry point cannot finish before persistence is applied and verified', async () => {
+test('existing app release atomically builds, applies persistence, and verifies without generic redeploy', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stock-promise-release-'));
   const log = join(directory, 'calls');
   const makeCommand = async (name) => {
@@ -99,8 +100,14 @@ test('release entry point cannot finish before persistence is applied and verifi
     return command;
   };
   const deploy = await makeCommand('deploy');
+  const build = await makeCommand('build');
   const persist = await makeCommand('persist');
   const verify = await makeCommand('verify');
+  await writeFile(build, `#!/usr/bin/env bash\nprintf '%s\\n' 'build' >> "$RELEASE_CALL_LOG"\nprintf '%s\\n' 'registry.example/stock:sha'\n`);
+  await chmod(build, 0o755);
+  const az = join(directory, 'az');
+  await writeFile(az, '#!/usr/bin/env bash\nexit 0\n');
+  await chmod(az, 0o755);
   const curl = join(directory, 'curl');
   await writeFile(curl, `#!/usr/bin/env bash\nprintf '{"build_sha":"%s","status":"ok"}' "$EXPECTED_RELEASE_SHA"\n`);
   await chmod(curl, 0o755);
@@ -111,6 +118,7 @@ test('release entry point cannot finish before persistence is applied and verifi
       ...process.env,
       PATH: `${directory}:${process.env.PATH}`,
       FACTORY_CONTAINER_DEPLOY_SCRIPT: deploy,
+      FACTORY_CONTAINER_BUILD_SCRIPT: build,
       PERSISTENT_DATA_APPLY_SCRIPT: persist,
       PERSISTENT_DATA_VERIFY_SCRIPT: verify,
       RELEASE_CALL_LOG: log,
@@ -119,5 +127,5 @@ test('release entry point cannot finish before persistence is applied and verifi
     },
   });
 
-  assert.equal(await readFile(log, 'utf8'), 'deploy\npersist\nverify\n');
+  assert.equal(await readFile(log, 'utf8'), 'build\npersist\nverify\n');
 });

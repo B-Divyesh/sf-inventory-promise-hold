@@ -57,12 +57,13 @@ entry point:
 npm run deploy
 ```
 
-This command runs the factory container build/deploy, creates or reuses the
-product's Azure Files share, mounts it at `/data`, pins the app to one replica,
-and fails unless Azure reports that exact ready topology and `/health` reports
-the committed source SHA. It also refuses a dirty source tree. Do not invoke
-the generic deploy command directly: its template replaces the volume
-configuration.
+For an existing installation this command builds the image separately, then
+updates the image, Azure Files `/data` mount, and one-replica limit in one
+revision. The generic factory deploy is used only to bootstrap a missing app.
+The command creates or reuses the data share and fails unless Azure reports the
+exact ready topology and `/health` reports the committed source SHA. It also
+refuses a dirty source tree. Do not invoke the generic deploy command directly:
+its template replaces the volume configuration.
 
 ## Test and verify
 

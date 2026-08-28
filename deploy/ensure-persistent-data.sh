@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# The factory's generic container deploy creates ephemeral replicas. Stock Promise
-# uses SQLite, so every deployment must run this immediately after deploy-container.sh.
+# Apply the image and durable SQLite topology in the same Container Apps revision.
 slug=${1:-inventory-promise-hold}
+release_image=${2:-}
 resource_group=${AZURE_RESOURCE_GROUP:-sociobot}
 environment_name=${AZURE_CONTAINER_ENV:-factory-env}
 storage_account=${AZURE_STORAGE_ACCOUNT:-sociobotblob}
@@ -12,7 +12,7 @@ app_name="sf-${slug}"
 share_name="sf-${slug}"
 storage_name="data-${slug}"
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-readiness_attempts=${PERSISTENT_READY_ATTEMPTS:-120}
+readiness_attempts=${PERSISTENT_READY_ATTEMPTS:-300}
 
 [[ "$slug" =~ ^[a-z0-9]([a-z0-9-]{0,40}[a-z0-9])?$ ]] || {
   echo "Invalid product slug: $slug" >&2
@@ -56,8 +56,10 @@ template=$(az containerapp show \
   --query properties.template -o json)
 template=$(jq \
   --arg storage "$storage_name" \
+  --arg release_image "$release_image" \
   '{containers: [.containers[] | select(.name == "app") |
-      {name, image, resources: {cpu: .resources.cpu, memory: .resources.memory}, env,
+      {name, image: (if $release_image == "" then .image else $release_image end),
+       resources: {cpu: .resources.cpu, memory: .resources.memory}, env,
        volumeMounts: [{volumeName:"stock-promise-data",mountPath:"/data"}]}],
     scale: {minReplicas: 1, maxReplicas: 1},
     volumes: [{name:"stock-promise-data",storageType:"AzureFile",storageName:$storage}]}' \
