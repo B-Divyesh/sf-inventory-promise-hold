@@ -1,0 +1,23 @@
+{
+  "name": "stock-promise",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --config frontend/vite.config.ts",
+    "build": "vite build --config frontend/vite.config.ts",
+    "test": "vitest run --config frontend/vite.config.ts && cargo test --quiet",
+    "check": "svelte-check --tsconfig frontend/tsconfig.json && cargo clippy --all-targets -- -D warnings"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^6.2.1",
+    "@testing-library/svelte": "^5.2.10",
+    "jsdom": "^26.1.0",
+    "svelte": "^5.38.7",
+    "svelte-check": "^4.3.1",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.3",
+    "vitest": "^3.2.4"
+  }
+}
+

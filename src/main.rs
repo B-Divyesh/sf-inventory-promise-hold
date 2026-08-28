@@ -52,8 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pool,
         build_sha: env::var("BUILD_SHA").unwrap_or_else(|_| "development".into()),
     };
-    let frontend =
-        PathBuf::from(env::var("FRONTEND_DIR").unwrap_or_else(|_| "frontend/dist".into()));
+    let frontend = PathBuf::from(env::var("FRONTEND_DIR").unwrap_or_else(|_| "dist".into()));
     let app = build_app(state, frontend);
     let address = SocketAddr::from(([0, 0, 0, 0], port));
 
