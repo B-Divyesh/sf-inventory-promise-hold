@@ -1,131 +1,65 @@
-# Stock Promise — repair handoff
+# Stock Promise — verification handoff
 
-Work order: `inventory-promise-hold-repair-2`
+Work order: `inventory-promise-hold-verify-3`
 
-Verifier report commit: `fc1b5a2c5ac5641bb7b4b3f41f35da33377e8048`
+Candidate: `fb0f1d3f582807c357342488794a1a53e453c93a`
 
-Failed candidate: `89db0bdb7520ce50b0a054f3a90a0ac64bb86c10`
+Live URL: <https://inventory-promise-hold.sociobot.in>
+Completed: 2026-08-30 UTC
 
-Live product: <https://inventory-promise-hold.sociobot.in>
+## Disposition: FAIL
 
-Completed: 2026-08-28 UTC
+Do not release this candidate. Full evidence is in
+`.factory/verification-3.md`.
 
-## Disposition
+Release blockers:
 
-Critical finding QA-01 in `.factory/verification-2.md` is repaired. Stock
-Promise now has one repository-owned release entry point which cannot complete
-until Azure reports one ready replica, an Azure Files volume, a `/data` mount,
-and a live build identity equal to the clean committed source. The researched
-single-location product, atomic hold behavior, append-only audit ledger,
-privacy/access boundary, paid unlock, and blue-hour design system are unchanged.
+1. `.factory/claims.json` is missing, so the mandatory first claim gate cannot
+   run and all product claims are unregistered.
+2. There is no one-click sample demo, `/demo`, isolated demo namespace,
+   banner/reset, or `.factory/demo.md`.
+3. The live URL still serves divergent SQLite state. Two 120-request status
+   samples split `79/41` and `80/40` between uninitialized and initialized.
+   One valid session returned 18 successful bootstraps and 42 unauthorized
+   responses. Previously verified live data was absent on the cold load.
+4. Only PIN login is rate limited. Its observed allowance is 10 attempts per
+   client per 60 seconds with `Retry-After: 60`; 250 status requests and 60
+   write requests produced no `429`.
+5. The brief's staff/supervisor boundary is absent. One shared supervisor PIN
+   grants hold creation plus every destructive/export power, and no required
+   Entra External ID integration exists.
+6. Hosted privacy text inaccurately says users control the SQLite server,
+   retention, and backups. There is no deletion control.
+7. The Dockerfile pins `rust:1.98-bookworm`, contrary to the mandatory
+   unpinned `rust:1-slim`/Alpine factory contract.
 
-## Root cause and repair
+Additional gaps: route-specific legal titles, designed 404, canonical/OG/social
+metadata, `robots.txt`, `sitemap.xml`, standard landing-page sections, footer
+factory/build identity, and `.factory/copy-audit.md` are missing.
 
-The factory's generic container deploy replaces the complete Container Apps
-template with `maxReplicas: 3` and no volumes. The previous repair documented a
-second persistence command, but that command was optional in practice and was
-not run for candidate `89db0bd`. The persistence helper also did not fail when
-its readiness loop timed out or when the final topology was unsafe.
+## What passed
 
-- Added `deploy/release.sh` and exposed it as `npm run deploy`. On an existing
-  installation it builds the image separately, then updates image, durable
-  storage, and one-replica scale in one revision; the unsafe generic template
-  is bootstrap-only. It verifies the storage contract and public `/health`
-  identity, and refuses to deploy a dirty tree.
-- Added `deploy/verify-persistent-data.sh`. It exits nonzero unless the app is
-  successfully provisioned, latest equals latest-ready, min/max replicas are
-  both exactly one, the named volume is Azure Files, and the `app` container
-  mounts that volume at `/data`.
-- Changed `deploy/ensure-persistent-data.sh` to fail on readiness timeout and
-  call the same topology verifier rather than merely print Azure state. Its
-  readiness loop now evaluates the full JSON topology instead of incorrectly
-  treating Azure CLI's two-line TSV array as one line. That parser bug made a
-  healthy latest-ready revision wait until timeout. The loop remains bounded
-  at ten minutes and cannot report an unready or unsafe release.
-- Updated deployment documentation so there is one supported release command,
-  not a separable two-command procedure.
-- Added executable Node regressions that accept the correct topology, reject
-  QA-01's exact `maxReplicas: 3`/missing-volume state, and prove an existing-app
-  release builds, applies persistence, and verifies without invoking the
-  generic deploy before checking live identity.
+- `npm ci`
+- `npm test` — 1 Vitest + 6 Node + 9 Rust tests
+- `npm run check` — Svelte/TypeScript and strict Clippy
+- `cargo fmt --all -- --check`
+- shell syntax checks for `deploy/*.sh`
+- `npm run build` — `dist/` produced
+- exact-SHA locked Rust release build
+- `npm run test:e2e` — 5/5
+- local SQLite persistence across a process restart
+- atomic live contention on the one initialized state (`201` + `409`)
+- invalid-input recovery, release, conversion, audit, CSV, and anonymous denial
+- desktop/390 px layout, keyboard focus, dialog focus, reduced motion, and zero
+  serious/critical axe findings on successfully loaded views
+- same-origin normal request log, no cookies, no online console/page errors,
+  expected security/cache headers
+- service-worker update and offline recovery screen
+- live candidate identity and byte-identical JS/CSS assets
+- Lighthouse mobile: 100 performance / 100 accessibility / 100 best practices /
+  100 SEO; LCP 1.5 s, TBT 0 ms, CLS 0.001
 
-Before deployment, the new verifier reproduced QA-01 against the live app and
-exited 1: revision `sf-inventory-promise-hold--0000011` reported min 1, max 3,
-`volumes: null`, and no mounts.
-
-The final `npm run deploy` completed its fail-closed topology and identity
-checks. Azure reported one ready revision, min/max replicas 1/1, storage
-`data-inventory-promise-hold`, and volume `stock-promise-data` mounted at
-`/data`. Live `/health.build_sha` equaled the clean repository `HEAD` used by
-the factory build.
-
-## Verification evidence
-
-Environment: Node 22.23.2, npm 10.9.8, Rust/Cargo 1.98.0, Playwright 1.58.2,
-Chromium 145.
-
-### Clean/local gates
-
-- `npm ci` — passed; 139 packages, 0 vulnerabilities.
-- `npm test` — passed: 1 Vitest, 6 executable Node deployment contracts, and
-  9 Rust unit/integration tests.
-- `npm run check` — passed: 0 Svelte/TypeScript warnings or errors; Clippy
-  passed for all targets with warnings denied.
-- `cargo fmt --all -- --check` and shell syntax checks — passed.
-- `npm run build` — passed and produced `dist/`.
-- `BUILD_SHA=local-repair-verification cargo build --release --locked` —
-  passed.
-- `npm run test:e2e` — 5/5 passed. Coverage includes setup, empty stock,
-  authenticated stock/hold/conversion/export, anonymous denial, desktop
-  keyboard and invalid-PIN recovery, 390 px geometry/touch targets, axe,
-  direct legal routes, response/cache/security policy, reduced motion,
-  service-worker update, and explicit offline recovery.
-- Factory URL verifier against the local release binary — passed in 621 ms:
-  correct title, `lang=en`, one H1/main, complete alt/button names, and zero
-  console errors.
-- Lighthouse 13 mobile against the local release binary — Performance 99,
-  Accessibility 100, Best Practices 100, SEO 100; FCP 1,352 ms, LCP 1,852 ms,
-  TBT 0 ms, CLS 0.00071.
-- Bundle: JS 75,665 bytes raw / 28.01 KB gzip; CSS 18,457 bytes raw / 5.05 KB
-  gzip; mobile image 15,414 bytes; complete `dist/` 194,217 bytes.
-- No container engine is installed locally. The locked frontend and Rust
-  release stages passed separately; the factory ACR build assembled and ran
-  the checked-in multi-stage image.
-- Library/package consumer verification is not applicable to this
-  `web-with-backend` artifact.
-
-### Live gates
-
-- `npm run deploy` passed the ACR build, Container Apps rollout, durable
-  topology assertion, and exact build identity assertion.
-- Checked-in live Playwright passed 5/5 across 1440×1000 desktop and 390×844
-  mobile: keyboard lifecycle, hold conversion/CSV, privacy-origin observation,
-  zero console/page/request errors, zero serious/critical axe findings,
-  reduced motion, service-worker update/offline reload, anonymous denial,
-  legal routes, response policy, and exact build identity.
-- Factory live URL verification passed with HTTP 200, complete semantics and
-  labels, desktop/mobile screenshots, and zero console errors (602 ms load).
-- Live Lighthouse 13 mobile — Performance 100, Accessibility 100, Best
-  Practices 100, SEO 100; FCP 1,351 ms, LCP 1,406 ms, TBT 5 ms, CLS 0.
-- An authenticated consistency load completed 3,000/3,000 bootstrap requests
-  with zero HTTP/transport failures at 71.24 requests/s and observed only
-  location `QA candidate e826a45`. A separate controlled 100 requests/s health
-  smoke completed 1,559/1,559 HTTP 200 responses at 103.94 requests/s average,
-  5.87 ms average / 40 ms p99 latency, and zero errors or timeouts.
-- After load, 120 status samples all returned initialized, 60 authenticated
-  bootstrap samples all returned 200 and the same location, and 30 health
-  samples all returned the release SHA. This directly reverses QA-01's mixed
-  setup states and 41/60 replica-local authorization failures.
-- A controlled restart of revision `sf-inventory-promise-hold--0000017`
-  retained byte-identical canonical bootstrap and audit payloads. Post-restart
-  evidence: bootstrap SHA-256
-  `571478c966144c5060105009e3a6a0d727e9fd56e16b1d727e265706a04eb32a`,
-  audit SHA-256
-  `1a6fc39527f3b916ca5b3dc2b83b00a3a6e35ae26d4ec71d71c8d96b170e6688`,
-  9 inventory rows, 0 active holds, and 8 outcomes. Topology remained one ready
-  replica with the Azure Files `/data` mount.
-
-## Run, verify, and deploy
+## Reproduce
 
 ```sh
 npm ci
@@ -134,20 +68,11 @@ npm run check
 cargo fmt --all -- --check
 npm run build
 npm run test:e2e
-BUILD_SHA=local-verification cargo build --release --locked
-
-npm run deploy
+BUILD_SHA=fb0f1d3f582807c357342488794a1a53e453c93a cargo build --release --locked
 ```
 
-For an infrastructure-only assertion, run
-`deploy/verify-persistent-data.sh inventory-promise-hold`. It must exit nonzero
-for any missing mount, scale-out configuration, unready revision, or failed
-provisioning state.
-
-## Known gaps
-
-None release-blocking. Stock Promise intentionally uses one SQLite-backed
-replica. Moving beyond one replica requires a shared transactional database;
-the verifier deliberately rejects scale-out until that architectural change is
-made. The generic factory deploy remains unsuitable by itself and must only be
-invoked through `npm run deploy`.
+The verification created clearly labelled QA data on one live backend state
+(`QA verify-3 fb0f1d3`, three `QA3-*` SKUs, two resolved holds, no active
+holds). It deleted nothing and did not inspect or alter infrastructure, shared
+services, secrets, DNS, billing, or any prohibited resource. Product code was
+not modified; only this handoff and the new verification report were changed.
