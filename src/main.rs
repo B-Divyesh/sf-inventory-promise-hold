@@ -13,7 +13,7 @@ use axum::{
     routing::{get, get_service},
     Router,
 };
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteLockingMode, SqlitePoolOptions};
 use tower_http::{
     services::{ServeDir, ServeFile},
     set_header::SetResponseHeaderLayer,
@@ -34,10 +34,12 @@ fn durable_database_options(database_path: &str) -> SqliteConnectOptions {
         .filename(database_path)
         .create_if_missing(true)
         .foreign_keys(true)
-        // Azure Files is a network filesystem. SQLite's rollback journal is
-        // compatible with the single-writer deployment, whereas WAL needs
-        // shared-memory locking that can leave a fresh mounted file wedged.
-        .journal_mode(SqliteJournalMode::Delete)
+        // Azure Files is a network filesystem. Its SMB mount cannot complete
+        // SQLite's on-disk journal-file handshake reliably. One application
+        // process and one pool connection keep the main SQLite file durable
+        // while the rollback journal stays in-process.
+        .journal_mode(SqliteJournalMode::Memory)
+        .locking_mode(SqliteLockingMode::Exclusive)
         .busy_timeout(std::time::Duration::from_secs(5))
 }
 
@@ -47,10 +49,27 @@ fn durable_database_options(database_path: &str) -> SqliteConnectOptions {
 /// adjacent recovery filename instead of blocking all future starts on it.
 fn recover_empty_database_path(configured_path: String) -> (String, &'static str) {
     match std::fs::metadata(&configured_path) {
-        Ok(metadata) if metadata.len() == 0 => (
-            format!("{configured_path}.recovered"),
-            "recovered from empty interrupted database",
-        ),
+        Ok(metadata) if metadata.len() == 0 => {
+            let recovered_root = format!("{configured_path}.recovered");
+            for sequence in 0..32 {
+                let candidate = if sequence == 0 {
+                    recovered_root.clone()
+                } else {
+                    format!("{recovered_root}.{sequence}")
+                };
+                match std::fs::metadata(&candidate) {
+                    Ok(metadata) if metadata.len() > 0 => {
+                        return (candidate, "recovered from empty interrupted database")
+                    }
+                    Ok(_) => continue,
+                    Err(_) => return (candidate, "recovered from empty interrupted database"),
+                }
+            }
+            (
+                format!("{recovered_root}.overflow"),
+                "recovered from empty interrupted database",
+            )
+        }
         _ => (configured_path, "configured"),
     }
 }
@@ -332,7 +351,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn durable_database_uses_a_rollback_journal() {
+    async fn durable_database_uses_an_in_process_rollback_journal() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("durable.db");
         let options = durable_database_options(path.to_str().unwrap());
@@ -345,7 +364,12 @@ mod tests {
             .fetch_one(&pool)
             .await
             .unwrap();
-        assert_eq!(journal_mode, "delete");
+        let locking_mode: String = sqlx::query_scalar("PRAGMA locking_mode")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(journal_mode, "memory");
+        assert_eq!(locking_mode, "exclusive");
     }
 
     #[test]
@@ -358,6 +382,11 @@ mod tests {
 
         assert_eq!(source, "recovered from empty interrupted database");
         assert_eq!(recovered, format!("{}.recovered", path.display()));
-        assert_eq!(std::fs::metadata(path).unwrap().len(), 0);
+        assert_eq!(std::fs::metadata(&path).unwrap().len(), 0);
+
+        std::fs::File::create(&recovered).unwrap();
+        let (next_recovered, next_source) = recover_empty_database_path(path.display().to_string());
+        assert_eq!(next_source, "recovered from empty interrupted database");
+        assert_eq!(next_recovered, format!("{}.recovered.1", path.display()));
     }
 }
