@@ -27,7 +27,12 @@ This repair addresses every finding in independent verification 3.
 - Replaced the pinned Rust image with `rust:1-slim`, made SQLite migrations
   safe for an existing `/data` database, and changed the release path to ask
   the factory deployer for work-order `/data` storage before verifying only the
-  `sf-inventory-promise-hold` one-ready-replica topology.
+  `sf-inventory-promise-hold` one-ready-replica topology. The runtime has one
+  pooled SQLite connection and uses SQLite's `unix-none` VFS with a normal
+  disk rollback journal; this avoids the Azure Files POSIX-lock hang while the
+  deployment topology guarantees exactly one writer. Empty files left by an
+  interrupted first boot are preserved and skipped in favour of one stable
+  adjacent recovery database.
 - Added route titles, canonical/social metadata, manifest, robots, sitemap,
   a styled HTTP 404, standard landing sections, accurate footer identity, and
   `.factory/copy-audit.md`.
@@ -45,7 +50,7 @@ split-state root cause. The new topology verifier rejects that exact shape.
 Environment: Node 22, npm 10, Rust stable, Playwright 1.58.2.
 
 - `npm ci` — passed, 141 packages, 0 vulnerabilities.
-- `npm test` — passed: Vitest, 6 deployment contracts, 13 Rust tests.
+- `npm test` — passed: Vitest, 6 deployment contracts, 15 Rust tests.
 - `npm run check` — passed: Svelte diagnostics and strict Clippy.
 - `cargo fmt --all -- --check`, `git diff --check`, and `bash -n deploy/*.sh`
   — passed.
@@ -101,6 +106,29 @@ to complete a live login. No other release-blocking gaps are known.
 
 ## Live release evidence
 
-Pending final deployment of this committed repair. This section is updated with
-the deployed revision, exact build SHA, durable topology, public consistency
-sample, and live verification after `npm run deploy` succeeds.
+Deployed code commit: `0667d7a560cbd0f9c8c91eb4c25ad3d4cf75756d`.
+
+- Factory release completed successfully on 2026-08-30 UTC. Revision
+  `sf-inventory-promise-hold--0000025` is the sole active revision and is
+  `Healthy` / `RunningAtMaxScale` with one replica.
+- The target-only topology verifier passed: `minReplicas: 1`,
+  `maxReplicas: 1`, Azure Files storage
+  `sf-inventory-promise-hold-data`, volume `data`, mounted at `/data`.
+- Target-only container inspection confirmed the active durable SQLite file
+  `stock-promise.db.recovered.3` is 61,440 bytes; the previous zero-byte
+  interrupted-first-boot artifacts remain preserved beside it.
+- `https://inventory-promise-hold.sociobot.in/health` returned `200` with the
+  exact deployed build SHA above.
+- `verify-url.sh` against the hosted root passed in 604 ms: title, `lang`, one
+  h1, main landmark, image alt text, labelled buttons, and no console errors.
+- A live 390 px Playwright run on `/demo` returned `200`, title
+  `Demo — Stock Promise`, one h1 and one main landmark; AxeBuilder reported no
+  serious or critical violations and the browser logged no errors. The
+  standalone Axe CLI was attempted but cannot locate a Selenium Chrome binary
+  in this worker image.
+- Live limiter proof from one forwarded address: 90 `GET /api/status` requests
+  returned 80×200 and 10×429; 30 invalid `POST /api/holds` requests returned
+  20×422 and 10×429. Both 429 sets included `Retry-After: 59`.
+- Live CIAM checks: `/api/auth/config` returned `{"mode":"ciam"}` and the
+  configured tenant discovery document returned its issuer, authorization
+  endpoint, and JWKS URL. No user credential or tenant setting was read.
