@@ -20,8 +20,8 @@ test('container uses current stable Rust and declares durable /data', async () =
 test('runtime uses a single SQLite writer compatible with the durable Azure Files mount', async () => {
   const main = await readFile(new URL('../src/main.rs', import.meta.url), 'utf8');
   const db = await readFile(new URL('../src/db.rs', import.meta.url), 'utf8');
-  assert.match(main, /\.journal_mode\(SqliteJournalMode::Memory\)/);
-  assert.match(main, /\.locking_mode\(SqliteLockingMode::Exclusive\)/);
+  assert.match(main, /\.vfs\("unix-none"\)/);
+  assert.match(main, /\.journal_mode\(SqliteJournalMode::Delete\)/);
   assert.match(main, /\.max_connections\(1\)/);
   assert.match(main, /prepare_schema/);
   assert.match(main, /recover_empty_database_path/);

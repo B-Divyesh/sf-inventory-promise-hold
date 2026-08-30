@@ -13,7 +13,7 @@ use axum::{
     routing::{get, get_service},
     Router,
 };
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteLockingMode, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use tower_http::{
     services::{ServeDir, ServeFile},
     set_header::SetResponseHeaderLayer,
@@ -34,12 +34,12 @@ fn durable_database_options(database_path: &str) -> SqliteConnectOptions {
         .filename(database_path)
         .create_if_missing(true)
         .foreign_keys(true)
-        // Azure Files is a network filesystem. Its SMB mount cannot complete
-        // SQLite's on-disk journal-file handshake reliably. One application
-        // process and one pool connection keep the main SQLite file durable
-        // while the rollback journal stays in-process.
-        .journal_mode(SqliteJournalMode::Memory)
-        .locking_mode(SqliteLockingMode::Exclusive)
+        // Azure Files' Linux client blocks on SQLite's POSIX lock calls. This
+        // VFS disables those calls while the one-replica, one-connection
+        // deployment guarantees one writer. Keep a disk rollback journal so
+        // the durable main database can recover after an interrupted write.
+        .vfs("unix-none")
+        .journal_mode(SqliteJournalMode::Delete)
         .busy_timeout(std::time::Duration::from_secs(5))
 }
 
@@ -351,7 +351,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn durable_database_uses_an_in_process_rollback_journal() {
+    async fn durable_database_uses_a_disk_rollback_journal_without_posix_locks() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("durable.db");
         let options = durable_database_options(path.to_str().unwrap());
@@ -364,12 +364,7 @@ mod tests {
             .fetch_one(&pool)
             .await
             .unwrap();
-        let locking_mode: String = sqlx::query_scalar("PRAGMA locking_mode")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-        assert_eq!(journal_mode, "memory");
-        assert_eq!(locking_mode, "exclusive");
+        assert_eq!(journal_mode, "delete");
     }
 
     #[test]
