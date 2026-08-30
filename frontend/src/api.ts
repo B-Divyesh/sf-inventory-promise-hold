@@ -31,6 +31,7 @@ export interface Bootstrap {
   inventory: InventoryItem[];
   active_holds: Hold[];
   recent_outcomes: Hold[];
+  role: 'staff' | 'supervisor';
 }
 
 const sessionKey = 'stock-promise:supervisor-session';
@@ -51,9 +52,9 @@ export function setSession(token: string | null): void {
 export async function request<T>(path: string, init: RequestInit = {}, access: 'none' | 'optional' | 'required' = 'none'): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has('content-type')) headers.set('content-type', 'application/json');
-  const token = getSession();
+  const token = getSession() || await accessToken();
   if (token && access !== 'none') headers.set('authorization', `Bearer ${token}`);
-  if (!token && access === 'required') throw new ResponseError('Enter the supervisor PIN to continue.', 401);
+  if (!token && access === 'required') throw new ResponseError(usesCiam() ? 'Sign in to continue.' : 'Enter the supervisor PIN to continue.', 401);
   let response: Response;
   try {
     response = await fetch(path, { ...init, headers });
@@ -68,3 +69,4 @@ export async function request<T>(path: string, init: RequestInit = {}, access: '
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
+import { accessToken, usesCiam } from './auth';

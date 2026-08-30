@@ -14,10 +14,9 @@ export default defineConfig({
     { name: 'mobile-chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } },
   ],
   webServer: {
-    command: 'PORT=4178 DATABASE_PATH=target/stock-promise-e2e.db FRONTEND_DIR=dist cargo run --quiet',
+    command: 'AUTH_MODE=local PORT=4178 DATABASE_PATH=target/stock-promise-e2e.db FRONTEND_DIR=dist cargo run --quiet',
     url: 'http://127.0.0.1:4178/health',
     reuseExistingServer: false,
     timeout: 120_000,
   },
 });
-

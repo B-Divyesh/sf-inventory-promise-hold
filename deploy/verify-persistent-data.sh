@@ -5,8 +5,8 @@ slug=${1:-inventory-promise-hold}
 resource_group=${AZURE_RESOURCE_GROUP:-sociobot}
 subscription=${AZURE_SUBSCRIPTION_ID:?AZURE_SUBSCRIPTION_ID is required}
 app_name="sf-${slug}"
-storage_name="data-${slug}"
-volume_name="stock-promise-data"
+storage_name="sf-${slug}-data"
+volume_name="data"
 
 [[ "$slug" =~ ^[a-z0-9]([a-z0-9-]{0,40}[a-z0-9])?$ ]] || {
   echo "Invalid product slug: $slug" >&2

@@ -7,8 +7,9 @@ use argon2::{
 };
 use axum::{
     body::Body,
-    extract::{ConnectInfo, Path, State},
+    extract::{ConnectInfo, Path, Request, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
+    middleware::Next,
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -27,22 +28,72 @@ use std::{
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use uuid::Uuid;
 
-use crate::db;
+use crate::{
+    auth::{AuthError, AuthMode, AuthService, Principal, Role},
+    db,
+};
 
 #[derive(Clone)]
 pub struct AppState {
     pub pool: SqlitePool,
     pub build_sha: String,
+    auth: AuthService,
     login_guard: Arc<LoginGuard>,
+    api_guard: Arc<ApiGuard>,
 }
 
 impl AppState {
     pub fn new(pool: SqlitePool, build_sha: String) -> Self {
+        Self::with_auth(pool, build_sha, AuthService::local_for_tests())
+    }
+
+    pub fn with_auth(pool: SqlitePool, build_sha: String, auth: AuthService) -> Self {
         Self {
             pool,
             build_sha,
+            auth,
             login_guard: Arc::new(LoginGuard::new()),
+            api_guard: Arc::new(ApiGuard::new()),
         }
+    }
+}
+
+struct ApiGuard {
+    clients: Mutex<HashMap<String, VecDeque<Instant>>>,
+}
+
+impl ApiGuard {
+    fn new() -> Self {
+        Self {
+            clients: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn begin(&self, client: &str, write: bool) -> Result<(), ApiError> {
+        let (limit, window) = if write {
+            (20usize, Duration::from_secs(60))
+        } else {
+            (80usize, Duration::from_secs(60))
+        };
+        let now = Instant::now();
+        let bucket = format!("{}:{}", if write { "write" } else { "read" }, client);
+        let mut clients = self.clients.lock().unwrap_or_else(|lock| lock.into_inner());
+        let requests = clients.entry(bucket).or_default();
+        requests.retain(|time| now.duration_since(*time) < window);
+        if requests.len() >= limit {
+            let retry_after = requests
+                .front()
+                .map(|first| {
+                    window
+                        .saturating_sub(now.duration_since(*first))
+                        .as_secs()
+                        .max(1)
+                })
+                .unwrap_or(1);
+            return Err(ApiError::RateLimited(retry_after));
+        }
+        requests.push_back(now);
+        Ok(())
     }
 }
 
@@ -70,7 +121,7 @@ impl LoginGuard {
             .concurrent
             .clone()
             .try_acquire_owned()
-            .map_err(|_| ApiError::TooManyRequests)?;
+            .map_err(|_| ApiError::RateLimited(60))?;
         let now = Instant::now();
         let window = Duration::from_secs(60);
         let mut attempts = self
@@ -81,12 +132,12 @@ impl LoginGuard {
             .global
             .retain(|time| now.duration_since(*time) < window);
         if attempts.global.len() >= 30 {
-            return Err(ApiError::TooManyRequests);
+            return Err(ApiError::RateLimited(60));
         }
         let client_attempts = attempts.clients.entry(client.to_owned()).or_default();
         client_attempts.retain(|time| now.duration_since(*time) < window);
         if client_attempts.len() >= 10 {
-            return Err(ApiError::TooManyRequests);
+            return Err(ApiError::RateLimited(60));
         }
         client_attempts.push_back(now);
         attempts.global.push_back(now);
@@ -104,27 +155,34 @@ pub enum ApiError {
     NotFound(String),
     #[error("{0}")]
     Conflict(String),
-    #[error("Too many unlock attempts. Wait one minute and try again.")]
-    TooManyRequests,
+    #[error("Too many requests. Wait briefly and try again.")]
+    RateLimited(u64),
     #[error("The server could not complete that action. Try again.")]
     Internal(#[from] sqlx::Error),
 }
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let status = match self {
+        let status = match &self {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Conflict(_) => StatusCode::CONFLICT,
-            Self::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,
+            Self::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
         let mut response = (status, Json(json!({ "error": self.to_string() }))).into_response();
-        if status == StatusCode::TOO_MANY_REQUESTS {
+        if let Self::RateLimited(retry_after) = self {
+            response.headers_mut().insert(
+                header::RETRY_AFTER,
+                HeaderValue::from_str(&retry_after.to_string())
+                    .unwrap_or(HeaderValue::from_static("1")),
+            );
+        }
+        if status == StatusCode::UNAUTHORIZED {
             response
                 .headers_mut()
-                .insert(header::RETRY_AFTER, HeaderValue::from_static("60"));
+                .insert(header::WWW_AUTHENTICATE, HeaderValue::from_static("Bearer"));
         }
         response
     }
@@ -142,6 +200,37 @@ pub fn routes() -> Router<AppState> {
         .route("/holds/{id}/resolve", post(resolve_hold))
         .route("/audit", get(audit))
         .route("/export.csv", get(export_csv))
+        .route("/data-retention", get(get_retention).post(set_retention))
+        .route("/location", axum::routing::delete(delete_location))
+        .route("/auth/config", get(auth_config))
+}
+
+pub async fn rate_limit(State(state): State<AppState>, request: Request, next: Next) -> Response {
+    let is_write = !matches!(
+        *request.method(),
+        axum::http::Method::GET | axum::http::Method::HEAD | axum::http::Method::OPTIONS
+    );
+    let peer = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|connect| connect.0)
+        .unwrap_or_else(|| "127.0.0.1:0".parse().expect("valid loopback address"));
+    let client = client_identity(peer, request.headers());
+    match state.api_guard.begin(&client, is_write) {
+        Ok(()) => next.run(request).await,
+        Err(error) => error.into_response(),
+    }
+}
+
+#[derive(Serialize)]
+struct AuthConfig {
+    mode: &'static str,
+}
+
+async fn auth_config(State(state): State<AppState>) -> Json<AuthConfig> {
+    Json(AuthConfig {
+        mode: state.auth.mode.as_str(),
+    })
 }
 
 pub async fn health(State(state): State<AppState>) -> Json<Value> {
@@ -156,6 +245,7 @@ struct Bootstrap {
     inventory: Vec<InventoryView>,
     active_holds: Vec<HoldView>,
     recent_outcomes: Vec<HoldView>,
+    role: String,
 }
 
 #[derive(Serialize)]
@@ -205,7 +295,7 @@ async fn bootstrap(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<Bootstrap>, ApiError> {
-    require_supervisor(&state.pool, &headers).await?;
+    let principal = require_role(&state, &headers, Role::Staff).await?;
     db::expire_due(&state.pool).await?;
     let setting = sqlx::query("SELECT location_name FROM settings WHERE singleton = 1")
         .fetch_optional(&state.pool)
@@ -241,6 +331,7 @@ async fn bootstrap(
         inventory,
         active_holds,
         recent_outcomes,
+        role: principal.role.as_str().into(),
     }))
 }
 
@@ -276,31 +367,50 @@ async fn fetch_holds(
 #[derive(Deserialize)]
 struct SetupInput {
     location_name: String,
-    pin: String,
+    pin: Option<String>,
 }
 
 #[derive(Serialize)]
 struct SessionOutput {
     token: String,
     expires_at: i64,
+    role: String,
 }
 
 async fn setup(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(input): Json<SetupInput>,
 ) -> Result<Json<SessionOutput>, ApiError> {
     let location = required_text(&input.location_name, "Location name", 80)?;
-    validate_pin(&input.pin)?;
-    let pin = input.pin.clone();
-    let hash = tokio::task::spawn_blocking(move || {
-        let salt = SaltString::generate(&mut PasswordOsRng);
-        Argon2::default()
-            .hash_password(pin.as_bytes(), &salt)
-            .map(|v| v.to_string())
-    })
-    .await
-    .map_err(|_| ApiError::BadRequest("Could not secure that PIN. Try again.".into()))?
-    .map_err(|_| ApiError::BadRequest("Could not secure that PIN. Try again.".into()))?;
+    let (hash, setup_principal) = match state.auth.mode {
+        AuthMode::Local => {
+            let pin = input
+                .pin
+                .ok_or_else(|| ApiError::BadRequest("Supervisor PIN is required.".into()))?;
+            validate_pin(&pin)?;
+            let hash = tokio::task::spawn_blocking(move || {
+                let salt = SaltString::generate(&mut PasswordOsRng);
+                Argon2::default()
+                    .hash_password(pin.as_bytes(), &salt)
+                    .map(|value| value.to_string())
+            })
+            .await
+            .map_err(|_| ApiError::BadRequest("Could not secure that PIN. Try again.".into()))?
+            .map_err(|_| ApiError::BadRequest("Could not secure that PIN. Try again.".into()))?;
+            (
+                hash,
+                Principal {
+                    oid: "local-supervisor".into(),
+                    role: Role::Supervisor,
+                },
+            )
+        }
+        AuthMode::Ciam => (
+            "ciam-managed".into(),
+            require_role(&state, &headers, Role::Supervisor).await?,
+        ),
+    };
     let now = db::now();
     let mut tx = state.pool.begin().await?;
     if sqlx::query("SELECT 1 FROM settings WHERE singleton = 1")
@@ -318,13 +428,23 @@ async fn setup(
         .bind(now)
         .execute(&mut *tx)
         .await?;
-    sqlx::query("INSERT INTO audit_log(event, entity_type, entity_id, actor, details_json, created_at) VALUES('location.setup', 'location', '1', 'Supervisor', ?, ?)")
+    sqlx::query("INSERT INTO audit_log(event, entity_type, entity_id, actor, details_json, created_at) VALUES('location.setup', 'location', '1', ?, ?, ?)")
+        .bind(&setup_principal.oid)
         .bind(json!({ "location_name": location }).to_string())
         .bind(now)
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
-    Ok(Json(create_session(&state.pool).await?))
+    let session = if matches!(state.auth.mode, AuthMode::Local) {
+        create_session(&state.pool, Role::Supervisor).await?
+    } else {
+        SessionOutput {
+            token: String::new(),
+            expires_at: 0,
+            role: Role::Supervisor.as_str().into(),
+        }
+    };
+    Ok(Json(session))
 }
 
 #[derive(Deserialize)]
@@ -338,6 +458,11 @@ async fn login(
     headers: HeaderMap,
     Json(input): Json<LoginInput>,
 ) -> Result<Json<SessionOutput>, ApiError> {
+    if matches!(state.auth.mode, AuthMode::Ciam) {
+        return Err(ApiError::Unauthorized(
+            "Use Sociobot sign-in to open the live promise desk.".into(),
+        ));
+    }
     let client = client_identity(peer, &headers);
     let _attempt = state.login_guard.begin(&client)?;
     let row = sqlx::query("SELECT supervisor_pin_hash FROM settings WHERE singleton = 1")
@@ -361,10 +486,13 @@ async fn login(
             "That supervisor PIN is not correct.".into(),
         ));
     }
-    Ok(Json(create_session(&state.pool).await?))
+    Ok(Json(create_session(&state.pool, Role::Supervisor).await?))
 }
 
 async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Result<StatusCode, ApiError> {
+    if matches!(state.auth.mode, AuthMode::Ciam) {
+        return Ok(StatusCode::NO_CONTENT);
+    }
     let token = bearer(&headers)?;
     sqlx::query("DELETE FROM sessions WHERE token_hash = ?")
         .bind(token_hash(token))
@@ -373,7 +501,7 @@ async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Result<Sta
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn create_session(pool: &SqlitePool) -> Result<SessionOutput, ApiError> {
+async fn create_session(pool: &SqlitePool, role: Role) -> Result<SessionOutput, ApiError> {
     let mut bytes = [0u8; 32];
     OsRng.fill_bytes(&mut bytes);
     let token = hex(&bytes);
@@ -383,30 +511,72 @@ async fn create_session(pool: &SqlitePool) -> Result<SessionOutput, ApiError> {
         .bind(now)
         .execute(pool)
         .await?;
-    sqlx::query("INSERT INTO sessions(token_hash, expires_at, created_at) VALUES(?, ?, ?)")
-        .bind(token_hash(&token))
-        .bind(expires_at)
-        .bind(now)
-        .execute(pool)
-        .await?;
-    Ok(SessionOutput { token, expires_at })
+    sqlx::query(
+        "INSERT INTO sessions(token_hash, role, expires_at, created_at) VALUES(?, ?, ?, ?)",
+    )
+    .bind(token_hash(&token))
+    .bind(role.as_str())
+    .bind(expires_at)
+    .bind(now)
+    .execute(pool)
+    .await?;
+    Ok(SessionOutput {
+        token,
+        expires_at,
+        role: role.as_str().into(),
+    })
 }
 
-async fn require_supervisor(pool: &SqlitePool, headers: &HeaderMap) -> Result<(), ApiError> {
-    let token = bearer(headers)?;
-    let valid = sqlx::query("SELECT 1 FROM sessions WHERE token_hash = ? AND expires_at > ?")
-        .bind(token_hash(token))
-        .bind(db::now())
-        .fetch_optional(pool)
-        .await?
-        .is_some();
-    if valid {
-        Ok(())
+async fn require_role(
+    state: &AppState,
+    headers: &HeaderMap,
+    required: Role,
+) -> Result<Principal, ApiError> {
+    let principal = match state.auth.mode {
+        AuthMode::Local => {
+            let token = bearer(headers)?;
+            let role: Option<String> = sqlx::query_scalar(
+                "SELECT role FROM sessions WHERE token_hash = ? AND expires_at > ?",
+            )
+            .bind(token_hash(token))
+            .bind(db::now())
+            .fetch_optional(&state.pool)
+            .await?;
+            let role = match role.as_deref() {
+                Some("supervisor") => Role::Supervisor,
+                Some("staff") => Role::Staff,
+                _ => {
+                    return Err(ApiError::Unauthorized(
+                        "Local access has expired. Sign in again.".into(),
+                    ))
+                }
+            };
+            Principal {
+                oid: "local-user".into(),
+                role,
+            }
+        }
+        AuthMode::Ciam => state
+            .auth
+            .validate(bearer(headers).ok())
+            .await
+            .map_err(auth_error)?,
+    };
+    if principal.role.allows(required) {
+        Ok(principal)
     } else {
         Err(ApiError::Unauthorized(
-            "Supervisor access has expired. Unlock it again.".into(),
+            "A supervisor must complete that action.".into(),
         ))
     }
+}
+
+async fn require_supervisor(state: &AppState, headers: &HeaderMap) -> Result<Principal, ApiError> {
+    require_role(state, headers, Role::Supervisor).await
+}
+
+fn auth_error(error: AuthError) -> ApiError {
+    ApiError::Unauthorized(error.to_string())
 }
 
 #[derive(Deserialize)]
@@ -421,7 +591,7 @@ async fn create_inventory(
     headers: HeaderMap,
     Json(input): Json<InventoryInput>,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
-    require_supervisor(&state.pool, &headers).await?;
+    require_supervisor(&state, &headers).await?;
     let sku = normalize_sku(&input.sku)?;
     let name = required_text(&input.name, "Item name", 120)?;
     validate_stock(input.on_hand)?;
@@ -461,7 +631,7 @@ async fn update_inventory(
     headers: HeaderMap,
     Json(input): Json<InventoryInput>,
 ) -> Result<Json<Value>, ApiError> {
-    require_supervisor(&state.pool, &headers).await?;
+    require_supervisor(&state, &headers).await?;
     let sku = normalize_sku(&input.sku)?;
     let name = required_text(&input.name, "Item name", 120)?;
     validate_stock(input.on_hand)?;
@@ -532,7 +702,7 @@ async fn create_hold(
     headers: HeaderMap,
     Json(input): Json<HoldInput>,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
-    require_supervisor(&state.pool, &headers).await?;
+    let principal = require_role(&state, &headers, Role::Staff).await?;
     if input.quantity <= 0 || input.quantity > 1_000_000 {
         return Err(ApiError::BadRequest(
             "Quantity must be between 1 and 1,000,000.".into(),
@@ -553,7 +723,16 @@ async fn create_hold(
     let id = Uuid::new_v4().to_string();
     let mut conn = state.pool.acquire().await?;
     sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
-    let outcome = create_hold_locked(&mut conn, &input, &id, &text, now, expires_at).await;
+    let outcome = create_hold_locked(
+        &mut conn,
+        &input,
+        &id,
+        &text,
+        &principal.oid,
+        now,
+        expires_at,
+    )
+    .await;
     match outcome {
         Ok(available_after) => {
             sqlx::query("COMMIT").execute(&mut *conn).await?;
@@ -576,6 +755,7 @@ async fn create_hold_locked(
     input: &HoldInput,
     id: &str,
     text: &HoldText,
+    audit_actor: &str,
     now: i64,
     expires_at: i64,
 ) -> Result<i64, ApiError> {
@@ -601,9 +781,9 @@ async fn create_hold_locked(
     sqlx::query("INSERT INTO holds(id, inventory_id, quantity, customer, order_note, operator_name, status, created_at, expires_at) VALUES(?, ?, ?, ?, ?, ?, 'active', ?, ?)")
         .bind(id).bind(input.inventory_id).bind(input.quantity).bind(&text.customer).bind(&text.note).bind(&text.operator).bind(now).bind(expires_at)
         .execute(&mut **conn).await?;
-    let details = json!({"sku": item.get::<String, _>("sku"), "item_name": item.get::<String, _>("name"), "quantity": input.quantity, "customer": text.customer, "expires_at": expires_at});
+    let details = json!({"sku": item.get::<String, _>("sku"), "item_name": item.get::<String, _>("name"), "quantity": input.quantity, "expires_at": expires_at});
     sqlx::query("INSERT INTO audit_log(event, entity_type, entity_id, actor, details_json, created_at) VALUES('hold.created', 'hold', ?, ?, ?, ?)")
-        .bind(id).bind(&text.operator).bind(details.to_string()).bind(now).execute(&mut **conn).await?;
+        .bind(id).bind(audit_actor).bind(details.to_string()).bind(now).execute(&mut **conn).await?;
     Ok(available - input.quantity)
 }
 
@@ -642,8 +822,8 @@ async fn resolve_hold(
     headers: HeaderMap,
     Json(input): Json<ResolveInput>,
 ) -> Result<Json<Value>, ApiError> {
-    require_supervisor(&state.pool, &headers).await?;
-    let actor = required_text(&input.actor, "Supervisor name", 80)?;
+    let principal = require_supervisor(&state, &headers).await?;
+    let _actor = required_text(&input.actor, "Supervisor name", 80)?;
     if input.action != "convert" && input.action != "release" {
         return Err(ApiError::BadRequest(
             "Action must be convert or release.".into(),
@@ -652,7 +832,7 @@ async fn resolve_hold(
     let now = db::now();
     let mut conn = state.pool.acquire().await?;
     sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
-    let outcome = resolve_hold_locked(&mut conn, &id, &input.action, &actor, now).await;
+    let outcome = resolve_hold_locked(&mut conn, &id, &input.action, &principal.oid, now).await;
     match outcome {
         Ok(()) => {
             sqlx::query("COMMIT").execute(&mut *conn).await?;
@@ -712,7 +892,7 @@ async fn resolve_hold_locked(
 }
 
 async fn audit(State(state): State<AppState>, headers: HeaderMap) -> Result<Json<Value>, ApiError> {
-    require_supervisor(&state.pool, &headers).await?;
+    require_supervisor(&state, &headers).await?;
     let rows = sqlx::query("SELECT id, event, entity_type, entity_id, actor, details_json, created_at FROM audit_log ORDER BY id DESC LIMIT 500")
         .fetch_all(&state.pool).await?;
     let entries: Vec<Value> = rows.into_iter().map(|row| json!({
@@ -727,7 +907,7 @@ async fn export_csv(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    require_supervisor(&state.pool, &headers).await?;
+    require_supervisor(&state, &headers).await?;
     db::expire_due(&state.pool).await?;
     let rows = sqlx::query("SELECT h.id, i.sku, i.name, h.quantity, h.customer, h.order_note, h.operator_name, h.status, h.created_at, h.expires_at, h.resolved_at, h.resolved_by FROM holds h JOIN inventory i ON i.id = h.inventory_id ORDER BY h.created_at DESC")
         .fetch_all(&state.pool).await?;
@@ -784,6 +964,89 @@ async fn export_csv(
     Ok(response)
 }
 
+#[derive(Serialize)]
+struct RetentionOutput {
+    retention_days: i64,
+}
+
+#[derive(Deserialize)]
+struct RetentionInput {
+    retention_days: i64,
+}
+
+async fn get_retention(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<RetentionOutput>, ApiError> {
+    require_supervisor(&state, &headers).await?;
+    let retention_days =
+        sqlx::query_scalar::<_, i64>("SELECT retention_days FROM settings WHERE singleton = 1")
+            .fetch_optional(&state.pool)
+            .await?
+            .unwrap_or(90);
+    Ok(Json(RetentionOutput { retention_days }))
+}
+
+async fn set_retention(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<RetentionInput>,
+) -> Result<Json<RetentionOutput>, ApiError> {
+    let principal = require_supervisor(&state, &headers).await?;
+    if !(30..=730).contains(&input.retention_days) {
+        return Err(ApiError::BadRequest(
+            "Retention must be between 30 and 730 days.".into(),
+        ));
+    }
+    sqlx::query("UPDATE settings SET retention_days = ? WHERE singleton = 1")
+        .bind(input.retention_days)
+        .execute(&state.pool)
+        .await?;
+    db::redact_retained_hold_details(&state.pool).await?;
+    audit_event(
+        &state.pool,
+        "privacy.retention_changed",
+        "location",
+        "1",
+        &principal.oid,
+        json!({"retention_days": input.retention_days}),
+    )
+    .await?;
+    Ok(Json(RetentionOutput {
+        retention_days: input.retention_days,
+    }))
+}
+
+#[derive(Deserialize)]
+struct DeleteLocationInput {
+    confirmation: String,
+}
+
+async fn delete_location(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<DeleteLocationInput>,
+) -> Result<StatusCode, ApiError> {
+    require_supervisor(&state, &headers).await?;
+    if input.confirmation != "DELETE" {
+        return Err(ApiError::BadRequest(
+            "Type DELETE to permanently erase this location's data.".into(),
+        ));
+    }
+    // A full location erasure is the explicit, documented exception to the
+    // append-only ledger. It removes all operational and audit data together.
+    sqlx::raw_sql(
+        "DROP TRIGGER IF EXISTS audit_log_no_update; DROP TRIGGER IF EXISTS audit_log_no_delete;",
+    )
+    .execute(&state.pool)
+    .await?;
+    sqlx::raw_sql("DELETE FROM holds; DELETE FROM inventory; DELETE FROM sessions; DELETE FROM audit_log; DELETE FROM settings;")
+        .execute(&state.pool).await?;
+    sqlx::raw_sql("CREATE TRIGGER audit_log_no_update BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit log is append-only'); END; CREATE TRIGGER audit_log_no_delete BEFORE DELETE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit log is append-only'); END;")
+        .execute(&state.pool).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 async fn audit_event(
     pool: &SqlitePool,
     event: &str,
@@ -811,7 +1074,9 @@ fn token_hash(token: &str) -> String {
 }
 
 fn client_identity(peer: SocketAddr, headers: &HeaderMap) -> String {
-    for name in ["x-envoy-external-address", "x-forwarded-for"] {
+    // The ingress forwards the public client address as the first XFF hop.
+    // Prefer it over the socket peer or proxy-specific headers.
+    for name in ["x-forwarded-for", "x-envoy-external-address"] {
         if let Some(ip) = headers
             .get(name)
             .and_then(|value| value.to_str().ok())
@@ -886,6 +1151,7 @@ mod tests {
     use super::*;
     use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
     use std::time::Duration;
+    use tower::ServiceExt;
 
     async fn state() -> AppState {
         let pool = SqlitePoolOptions::new()
@@ -898,7 +1164,11 @@ mod tests {
     }
 
     async fn auth_headers(state: &AppState) -> HeaderMap {
-        let session = create_session(&state.pool).await.unwrap();
+        role_headers(state, Role::Supervisor).await
+    }
+
+    async fn role_headers(state: &AppState, role: Role) -> HeaderMap {
+        let session = create_session(&state.pool, role).await.unwrap();
         let mut headers = HeaderMap::new();
         headers.insert(
             header::AUTHORIZATION,
@@ -1023,7 +1293,7 @@ mod tests {
         headers.insert("x-forwarded-for", "203.0.113.8, 10.0.0.2".parse().unwrap());
         assert_eq!(client_identity(peer, &headers), "203.0.113.8");
         headers.insert("x-envoy-external-address", "198.51.100.4".parse().unwrap());
-        assert_eq!(client_identity(peer, &headers), "198.51.100.4");
+        assert_eq!(client_identity(peer, &headers), "203.0.113.8");
     }
 
     #[test]
@@ -1034,7 +1304,7 @@ mod tests {
         }
         assert!(matches!(
             guard.begin("192.0.2.10"),
-            Err(ApiError::TooManyRequests)
+            Err(ApiError::RateLimited(_))
         ));
 
         let guard = LoginGuard::new();
@@ -1043,7 +1313,7 @@ mod tests {
         }
         assert!(matches!(
             guard.begin("203.0.113.1"),
-            Err(ApiError::TooManyRequests)
+            Err(ApiError::RateLimited(_))
         ));
 
         let guard = LoginGuard::new();
@@ -1053,7 +1323,7 @@ mod tests {
             .unwrap();
         assert!(matches!(
             guard.begin("192.0.2.99"),
-            Err(ApiError::TooManyRequests)
+            Err(ApiError::RateLimited(_))
         ));
         drop(permits);
     }
@@ -1094,5 +1364,82 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(authenticated.0.inventory.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn claim_role_boundary_staff_can_hold_but_not_change_or_resolve_stock() {
+        let state = state().await;
+        sqlx::query("INSERT INTO inventory(sku,name,on_hand,created_at,updated_at) VALUES('ROLE-1','Role-bound part',4,0,0)")
+            .execute(&state.pool).await.unwrap();
+        let staff = role_headers(&state, Role::Staff).await;
+        let (_, Json(created)) = create_hold(
+            State(state.clone()),
+            staff.clone(),
+            Json(HoldInput {
+                inventory_id: 1,
+                quantity: 1,
+                customer: "Staff customer".into(),
+                order_note: None,
+                operator_name: "Staff member".into(),
+                duration_minutes: 30,
+            }),
+        )
+        .await
+        .unwrap();
+        let changed = update_inventory(
+            State(state.clone()),
+            Path(1),
+            staff.clone(),
+            Json(InventoryInput {
+                sku: "ROLE-1".into(),
+                name: "Role-bound part".into(),
+                on_hand: 5,
+            }),
+        )
+        .await;
+        assert!(matches!(changed, Err(ApiError::Unauthorized(_))));
+        let resolved = resolve_hold(
+            State(state),
+            Path(created["id"].as_str().unwrap().to_string()),
+            staff,
+            Json(ResolveInput {
+                action: "release".into(),
+                actor: "Staff member".into(),
+            }),
+        )
+        .await;
+        assert!(matches!(resolved, Err(ApiError::Unauthorized(_))));
+    }
+
+    #[tokio::test]
+    async fn claim_rate_limit_returns_retry_after_for_excessive_status_requests() {
+        let state = state().await;
+        let app = crate::build_app(state, tempfile::tempdir().unwrap().keep());
+        for _ in 0..80 {
+            let response = app
+                .clone()
+                .oneshot(
+                    axum::http::Request::builder()
+                        .uri("/api/status")
+                        .header("x-forwarded-for", "203.0.113.21")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+        let response = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/status")
+                    .header("x-forwarded-for", "203.0.113.21")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert!(response.headers().get(header::RETRY_AFTER).is_some());
     }
 }

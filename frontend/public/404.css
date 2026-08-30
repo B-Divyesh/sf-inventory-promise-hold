@@ -1,0 +1,6 @@
+:root { color: #f4f0e6; background: #071318; font-family: system-ui, sans-serif; }
+body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; box-sizing: border-box; }
+main { width: min(620px, 100%); border-left: 4px solid #f2ae49; padding: 32px; background: #10262c; }
+p { color: #aebfc0; line-height: 1.55; }
+a { display: inline-flex; min-height: 44px; align-items: center; padding: 0 16px; color: #172023; background: #f2ae49; font-weight: 700; text-decoration: none; }
+a:focus-visible { outline: 3px solid #f4f0e6; outline-offset: 3px; }

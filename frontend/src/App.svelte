@@ -1,14 +1,17 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { request, getSession, setSession, ResponseError, type Bootstrap, type InventoryItem, type Hold } from './api';
+  import { configureAuth, signIn, signOut, usesCiam } from './auth';
   import { buyUrl, captureLicense, checkLicense, storeLicense, type LicenseState } from './license';
   import { formatTime, relativeExpiry } from './time';
   import Legal from './Legal.svelte';
 
   type Tab = 'desk' | 'outcomes' | 'settings';
-  type Modal = 'hold' | 'unlock' | 'inventory' | 'import' | null;
+  type Modal = 'hold' | 'unlock' | 'inventory' | 'import' | 'privacy' | null;
 
   let path = window.location.pathname;
+  let landing = path === '/';
+  let demo = path === '/demo';
   let data: Bootstrap | null = null;
   let loading = true;
   let refreshing = false;
@@ -33,6 +36,7 @@
   let reminders = localStorage.getItem('stock-promise:reminders') === 'true';
   let auditEntries: Array<Record<string, any>> = [];
   let importReport = '';
+  let retentionDays = 90;
   const notified = new Set<string>();
 
   $: filteredInventory = (data?.inventory || []).filter((item) =>
@@ -45,7 +49,14 @@
   onMount(() => {
     captureLicense();
     checkLicense().then((value) => license = value);
-    load();
+    if (demo) load();
+    else if (path === '/auth/callback') {
+      path = '/'; landing = false; prepareLive();
+    } else if (!landing && path !== '/privacy' && path !== '/terms' && path !== '/404') {
+      path = '/404'; loading = false;
+    } else {
+      loading = false;
+    }
     const clock = window.setInterval(() => {
       now = Date.now();
       sendReminders();
@@ -56,31 +67,97 @@
     const handleOffline = () => online = false;
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    window.addEventListener('popstate', () => path = window.location.pathname);
+    const handlePopState = () => {
+      path = window.location.pathname;
+      demo = path === '/demo';
+      landing = path === '/';
+      if (demo) load();
+      else if (landing) { data = null; accessRequired = false; loading = false; }
+    };
+    window.addEventListener('popstate', handlePopState);
     return () => {
       clearInterval(clock);
       clearInterval(sync);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('popstate', handlePopState);
     };
   });
 
   function navigate(next: string) {
     history.pushState({}, '', next);
     path = next;
+    demo = next === '/demo';
+    landing = next === '/';
+    if (demo) load();
+    if (landing) { data = null; accessRequired = false; loading = false; }
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    tick().then(() => focusPageHeading());
+  }
+
+  function focusPageHeading() {
+    const heading = document.querySelector<HTMLElement>('h1');
+    if (!heading) return;
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
+    announcement = `Opened ${heading.textContent?.trim() || 'page'}.`;
+  }
+
+  async function prepareLive() {
+    loading = true;
+    try {
+      const config = await request<{ mode: 'local' | 'ciam' }>('/api/auth/config');
+      await configureAuth(config.mode);
+      await load();
+    } catch (error) {
+      fatalError = message(error); loading = false;
+    }
+  }
+
+  function startLive() {
+    landing = false;
+    prepareLive();
+  }
+
+  const demoKey = 'demo:stock-promise:state';
+  function sampleData(): Bootstrap {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    return {
+      setup_required: false, location_name: 'Harbor Parts — sample', server_time: nowSeconds, role: 'supervisor',
+      inventory: [
+        { id: 1, sku: 'VALVE-24', name: 'Brass isolation valve', on_hand: 12, held: 3, available: 9 },
+        { id: 2, sku: 'FILTER-8', name: 'Cartridge filter', on_hand: 6, held: 0, available: 6 },
+        { id: 3, sku: 'SEAL-11', name: 'Nitrile seal set', on_hand: 4, held: 0, available: 4 },
+      ],
+      active_holds: [{ id: 'demo-active-1', inventory_id: 1, sku: 'VALVE-24', item_name: 'Brass isolation valve', quantity: 3, customer: 'Northline Plumbing order 418', order_note: 'Counter pickup', operator_name: 'Mina', status: 'active', created_at: nowSeconds - 300, expires_at: nowSeconds + 25 * 60, resolved_at: null, resolved_by: null }],
+      recent_outcomes: [{ id: 'demo-outcome-1', inventory_id: 2, sku: 'FILTER-8', item_name: 'Cartridge filter', quantity: 2, customer: 'Tideway Maintenance order 771', order_note: '', operator_name: 'Ravi', status: 'converted', created_at: nowSeconds - 7200, expires_at: nowSeconds - 5400, resolved_at: nowSeconds - 5100, resolved_by: 'Supervisor' }],
+    };
+  }
+
+  function resetDemo() {
+    sessionStorage.removeItem(demoKey);
+    data = sampleData(); supervisor = true; auditEntries = [];
+    announcement = 'Demo reset to the shipped sample data.';
+  }
+
+  function persistDemo() {
+    if (data) sessionStorage.setItem(demoKey, JSON.stringify(data));
   }
 
   async function load(quiet = false) {
     if (quiet) refreshing = true; else loading = true;
     try {
-      if (getSession()) {
+      if (demo) {
+        data = JSON.parse(sessionStorage.getItem(demoKey) || 'null') || sampleData();
+        supervisor = true; accessRequired = false;
+      } else if (getSession() || usesCiam()) {
         data = await request<Bootstrap>('/api/bootstrap', {}, 'required');
+        supervisor = data.role === 'supervisor';
         accessRequired = false;
       } else {
         const status = await request<{ setup_required: boolean; server_time: number }>('/api/status');
         if (status.setup_required) {
-          data = { setup_required: true, location_name: null, server_time: status.server_time, inventory: [], active_holds: [], recent_outcomes: [] };
+          data = { setup_required: true, location_name: null, server_time: status.server_time, inventory: [], active_holds: [], recent_outcomes: [], role: 'supervisor' };
           accessRequired = false;
         } else {
           data = null;
@@ -126,7 +203,7 @@
     const values = Object.fromEntries(new FormData(event.currentTarget as HTMLFormElement));
     try {
       const result = await request<{ token: string }>('/api/setup', { method: 'POST', body: JSON.stringify(values) });
-      setSession(result.token); supervisor = true;
+      if (result.token) setSession(result.token); supervisor = true;
       announcement = 'Location ready. Add the stock your team promises.';
       await load(true);
     } catch (error) { formError = message(error); }
@@ -134,6 +211,7 @@
   }
 
   async function unlock(event: SubmitEvent) {
+    if (usesCiam()) { await signIn(); return; }
     busy = 'unlock'; formError = '';
     const values = Object.fromEntries(new FormData(event.currentTarget as HTMLFormElement));
     try {
@@ -147,6 +225,8 @@
   }
 
   async function lockSupervisor() {
+    if (demo) { announcement = 'The demo is already isolated from live data.'; return; }
+    if (usesCiam()) { await signOut(); return; }
     try { await request('/api/session', { method: 'DELETE' }, 'required'); } catch { /* local lock still applies */ }
     setSession(null); supervisor = false; auditEntries = []; data = null; accessRequired = true;
     announcement = 'Promise desk locked.';
@@ -157,6 +237,18 @@
     const wasEditing = Boolean(editingItem);
     const values = Object.fromEntries(new FormData(event.currentTarget as HTMLFormElement));
     const payload = { ...values, on_hand: Number(values.on_hand) };
+    if (demo && data) {
+      const sku = String(values.sku).trim().toUpperCase();
+      const name = String(values.name).trim();
+      if (!sku || !name || !Number.isFinite(payload.on_hand) || payload.on_hand < 0) { formError = 'Enter a SKU, item name, and a non-negative stock count.'; busy = ''; return; }
+      if (editingItem) {
+        data.inventory = data.inventory.map((item) => item.id === editingItem?.id ? { ...item, sku, name, on_hand: payload.on_hand, available: payload.on_hand - item.held } : item);
+      } else {
+        const id = Math.max(0, ...data.inventory.map((item) => item.id)) + 1;
+        data.inventory = [...data.inventory, { id, sku, name, on_hand: payload.on_hand, held: 0, available: payload.on_hand }];
+      }
+      persistDemo(); closeModal(); announcement = wasEditing ? 'Sample stock record updated.' : 'Sample stock item added.'; busy = ''; return;
+    }
     try {
       await request(editingItem ? `/api/inventory/${editingItem.id}` : '/api/inventory', { method: 'POST', body: JSON.stringify(payload) }, 'required');
       closeModal(); announcement = wasEditing ? 'Stock record updated.' : 'Stock item added.';
@@ -170,6 +262,16 @@
     busy = 'hold'; formError = '';
     const values = Object.fromEntries(new FormData(event.currentTarget as HTMLFormElement));
     const payload = { ...values, inventory_id: selectedItem.id, quantity: Number(values.quantity), duration_minutes: Number(values.duration_minutes) };
+    if (demo && data) {
+      const item = data.inventory.find((candidate) => candidate.id === selectedItem?.id);
+      if (!item || payload.quantity < 1 || payload.quantity > item.available) { formError = 'Choose a quantity that is available in the sample stockroom.'; busy = ''; return; }
+      const createdAt = Math.floor(Date.now() / 1000);
+      const hold: Hold = { id: `demo-${crypto.randomUUID()}`, inventory_id: item.id, sku: item.sku, item_name: item.name, quantity: payload.quantity, customer: String(values.customer), order_note: String(values.order_note || ''), operator_name: String(values.operator_name), status: 'active', created_at: createdAt, expires_at: createdAt + payload.duration_minutes * 60, resolved_at: null, resolved_by: null };
+      data.inventory = data.inventory.map((candidate) => candidate.id === item.id ? { ...candidate, held: candidate.held + hold.quantity, available: candidate.available - hold.quantity } : candidate);
+      data.active_holds = [...data.active_holds, hold];
+      operatorName = hold.operator_name; localStorage.setItem('stock-promise:operator', operatorName);
+      persistDemo(); closeModal(); announcement = `Sample hold created for ${hold.customer}. ${hold.quantity} units are now protected.`; busy = ''; return;
+    }
     try {
       await request('/api/holds', { method: 'POST', body: JSON.stringify(payload) }, 'required');
       operatorName = String(values.operator_name); localStorage.setItem('stock-promise:operator', operatorName);
@@ -184,6 +286,17 @@
     if (action === 'release' && !confirm(`Release ${hold.quantity} × ${hold.sku} held for ${hold.customer}? The stock will become available immediately.`)) return;
     if (action === 'convert' && !confirm(`Convert ${hold.quantity} × ${hold.sku} for ${hold.customer}? This permanently deducts the units from on-hand stock.`)) return;
     busy = hold.id; formError = '';
+    if (demo && data) {
+      const resolvedAt = Math.floor(Date.now() / 1000);
+      data.active_holds = data.active_holds.filter((candidate) => candidate.id !== hold.id);
+      data.inventory = data.inventory.map((item) => {
+        if (item.id !== hold.inventory_id) return item;
+        const on_hand = action === 'convert' ? item.on_hand - hold.quantity : item.on_hand;
+        return { ...item, on_hand, held: item.held - hold.quantity, available: on_hand - (item.held - hold.quantity) };
+      });
+      data.recent_outcomes = [{ ...hold, status: action === 'convert' ? 'converted' : 'released', resolved_at: resolvedAt, resolved_by: 'Sample supervisor' }, ...data.recent_outcomes];
+      persistDemo(); announcement = action === 'convert' ? `Sample hold for ${hold.customer} converted.` : `Sample hold for ${hold.customer} released.`; busy = ''; return;
+    }
     try {
       await request(`/api/holds/${hold.id}/resolve`, { method: 'POST', body: JSON.stringify({ action, actor: supervisorName || 'Supervisor' }) }, 'required');
       if (supervisorName) localStorage.setItem('stock-promise:supervisor-name', supervisorName);
@@ -197,6 +310,15 @@
     if (!supervisor) { openModal('unlock'); return; }
     busy = 'export';
     try {
+      if (demo && data) {
+        const rows = [...data.active_holds, ...data.recent_outcomes];
+        const header = 'hold_id,sku,item,quantity,customer,order_note,operator,outcome\n';
+        const quote = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
+        const csv = header + rows.map((hold) => [hold.id, hold.sku, hold.item_name, hold.quantity, hold.customer, hold.order_note, hold.operator_name, hold.status].map(quote).join(',')).join('\n');
+        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+        const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'stock-promise-holds.csv'; anchor.click(); URL.revokeObjectURL(url);
+        announcement = 'Sample CSV export downloaded.'; return;
+      }
       const response = await fetch('/api/export.csv', { headers: { authorization: `Bearer ${getSession()}` } });
       if (!response.ok) throw new Error((await response.json()).error);
       const url = URL.createObjectURL(await response.blob());
@@ -269,37 +391,91 @@
     catch (error) { announcement = message(error); supervisor = Boolean(getSession()); }
   }
 
+  async function loadRetention() {
+    if (!supervisor || demo) return;
+    try { retentionDays = (await request<{ retention_days: number }>('/api/data-retention', {}, 'required')).retention_days; }
+    catch (error) { announcement = message(error); }
+  }
+
+  async function saveRetention(event: SubmitEvent) {
+    busy = 'retention'; formError = '';
+    const retention_days = Number(new FormData(event.currentTarget as HTMLFormElement).get('retention_days'));
+    try {
+      if (demo) { retentionDays = retention_days; announcement = 'Sample retention setting changed.'; closeModal(); return; }
+      retentionDays = (await request<{ retention_days: number }>('/api/data-retention', { method: 'POST', body: JSON.stringify({ retention_days }) }, 'required')).retention_days;
+      announcement = `Shared data retention set to ${retentionDays} days.`; closeModal();
+    } catch (error) { formError = message(error); } finally { busy = ''; }
+  }
+
+  async function eraseLocation(event: SubmitEvent) {
+    busy = 'erase'; formError = '';
+    const confirmation = String(new FormData(event.currentTarget as HTMLFormElement).get('confirmation') || '');
+    try {
+      if (demo) { resetDemo(); closeModal(); return; }
+      await request('/api/location', { method: 'DELETE', body: JSON.stringify({ confirmation }) }, 'required');
+      setSession(null); data = null; supervisor = false; accessRequired = false; landing = true; navigate('/');
+    } catch (error) { formError = message(error); } finally { busy = ''; }
+  }
+
   function chooseTab(next: Tab) {
     tab = next;
-    if (next === 'settings') loadAudit();
+    if (next === 'settings') { loadAudit(); loadRetention(); }
   }
 
   function message(error: unknown): string { return error instanceof Error ? error.message : 'Something went wrong. Try again.'; }
 </script>
+
+<svelte:head>
+  <title>{path === '/demo' ? 'Demo — Stock Promise' : path === '/404' ? 'Page not found — Stock Promise' : 'Stock Promise — timed inventory holds'}</title>
+</svelte:head>
 
 {#if path === '/privacy' || path === '/terms'}
   <Legal kind={path === '/privacy' ? 'privacy' : 'terms'} {navigate} />
 {:else}
   <a class="skip-link" href="#main">Skip to promise desk</a>
   <header class="app-header">
-    <a class="wordmark" href="/" onclick={(event) => { event.preventDefault(); chooseTab('desk'); }}>
+    <a class="wordmark" href="/" onclick={(event) => { event.preventDefault(); navigate('/'); }}>
       <img src="/mark.svg" alt="" width="38" height="38" />
       <span>Stock Promise</span>
     </a>
+    <nav class="top-nav" aria-label="Site">
+      <a href="/demo" onclick={(event) => { event.preventDefault(); navigate('/demo'); }}>Demo</a>
+      <a href="/privacy" onclick={(event) => { event.preventDefault(); navigate('/privacy'); }}>Privacy</a>
+    </nav>
     <div class="header-status">
       <span class:offline={!online} class="connection"><i></i>{online ? 'Shared live' : 'Offline'}</span>
       {#if data && !data.setup_required}
-        <button class="quiet-button" onclick={() => supervisor ? lockSupervisor() : openModal('unlock')}>
-          {supervisor ? 'Lock supervisor' : 'Supervisor unlock'}
+        <button class="quiet-button" onclick={() => usesCiam() || supervisor ? lockSupervisor() : openModal('unlock')}>
+          {usesCiam() ? 'Sign out' : supervisor ? 'Lock supervisor' : 'Supervisor unlock'}
         </button>
       {/if}
     </div>
   </header>
 
   {#if !online}<div class="offline-banner" role="status">You’re offline. Current figures may be stale; new promises are paused until the shared server reconnects.</div>{/if}
+  {#if demo}<div class="demo-banner" role="status"><span><strong>Demo</strong> — sample data, nothing is saved.</span><button class="text-button" onclick={resetDemo}>Reset demo</button><a class="text-button" href="/" onclick={(event) => { event.preventDefault(); navigate('/'); }}>Start for real</a></div>{/if}
   <div class="live-region" aria-live="polite">{announcement}</div>
 
-  {#if loading}
+  {#if path === '/404'}
+    <main id="main" class="center-state"><p class="eyebrow">404</p><h1>This page is not here.</h1><p>Use the live desk or the sample stockroom to continue.</p><a class="primary-button" href="/" onclick={(event) => { event.preventDefault(); navigate('/'); }}>Return home</a></main>
+  {:else if landing}
+    <main id="main" class="landing-page">
+      <section class="landing-hero">
+        <div class="landing-copy">
+          <p class="eyebrow">One shared location</p>
+          <h1>Hold scarce stock before it is promised twice.</h1>
+          <p>For distributors and resellers taking orders in parallel, Stock Promise shows a timed team hold before stock is promised.</p>
+          <div class="landing-actions"><a class="primary-button" href="/demo" onclick={(event) => { event.preventDefault(); navigate('/demo'); }}>Try it with sample data</a><span>See a working stockroom immediately.</span></div>
+          <div class="plain-facts"><span>Timed holds expire automatically.</span><span>Live data stays on this service.</span><span>Core holds and CSV export are free.</span></div>
+          <button class="secondary-button" onclick={startLive}>Open the live desk</button>
+        </div>
+        <picture><source media="(max-width: 700px)" srcset="/assets/stockroom-watch-640.webp" /><img src="/assets/stockroom-watch-1536.webp" width="1536" height="1024" alt="An orderly stockroom aisle with a small carton group under a warm work light" fetchpriority="high" decoding="async" /></picture>
+      </section>
+      <section class="landing-section" aria-labelledby="how-it-works"><h2 id="how-it-works">How it works</h2><ol><li><strong>List stock.</strong> Add the SKUs that one location can promise.</li><li><strong>Place a hold.</strong> Staff name the customer, quantity, and expiry.</li><li><strong>Resolve it.</strong> A supervisor converts or releases the hold.</li></ol></section>
+      <section class="landing-section" aria-labelledby="limits"><h2 id="limits">What Stock Promise does not do</h2><p>It is not a legal reservation, warehouse system, storefront, or replacement for your system of record.</p><p>Supervisors choose when resolved customer references, notes, and operator names are removed.</p></section>
+      <section class="landing-section" aria-labelledby="pricing"><h2 id="pricing">Optional Pro convenience</h2><p>$39 one-time adds local operator profiles and on-device expiry reminders. Core safety, audit, and export stay free.</p><a class="text-button" href={buyUrl}>View purchase options</a></section>
+    </main>
+  {:else if loading}
     <main id="main" class="loading-state" aria-busy="true">
       <p class="eyebrow">Opening the stockroom</p><h1>Finding today’s promises…</h1><div class="loader"></div>
     </main>
@@ -307,13 +483,18 @@
     <main id="main" class="center-state access-gate">
       <p class="eyebrow">Staff access</p>
       <h1>Open the promise desk.</h1>
-      <p>Operational stock and customer references are private to this location. Enter the shared supervisor PIN to continue.</p>
-      <form onsubmit={(event) => { event.preventDefault(); unlock(event); }}>
-        <label for="access-pin">Supervisor PIN <span>6–12 digits</span></label>
-        <input id="access-pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]+" minlength="6" maxlength="12" autocomplete="current-password" required />
-        {#if formError}<p class="form-error" role="alert">{formError}</p>{/if}
-        <button class="primary-button" disabled={busy === 'unlock'}>{busy === 'unlock' ? 'Opening desk…' : 'Open promise desk'}</button>
-      </form>
+      <p>Operational stock and customer references are private to this location.</p>
+      {#if usesCiam()}
+        <p>Sign in with your Sociobot account. Staff can create holds; supervisors can change stock and resolve holds.</p>
+        <button class="primary-button" onclick={() => signIn()}>Sign in with Sociobot</button>
+      {:else}
+        <form onsubmit={(event) => { event.preventDefault(); unlock(event); }}>
+          <label for="access-pin">Supervisor PIN <span>6–12 digits</span></label>
+          <input id="access-pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]+" minlength="6" maxlength="12" autocomplete="current-password" required />
+          {#if formError}<p class="form-error" role="alert">{formError}</p>{/if}
+          <button class="primary-button" disabled={busy === 'unlock'}>{busy === 'unlock' ? 'Opening desk…' : 'Open promise desk'}</button>
+        </form>
+      {/if}
     </main>
   {:else if fatalError}
     <main id="main" class="center-state">
@@ -326,14 +507,14 @@
         <div class="art-copy"><p class="eyebrow">One location · one live truth</p><h1>Promise what’s there. Once.</h1><p>Create a visible, timed claim while the order is still being written.</p></div>
       </section>
       <section class="setup-form-wrap" aria-labelledby="setup-title">
-        <p class="step">First shift setup</p><h2 id="setup-title">Name this stockroom</h2><p>This takes about a minute. The PIN protects stock edits, conversions, and exports.</p>
+        <p class="step">First shift setup</p><h2 id="setup-title">Name this stockroom</h2><p>This takes about a minute. Supervisors protect stock edits, conversions, and exports.</p>
         <form onsubmit={(event) => { event.preventDefault(); setup(event); }}>
           <label for="location">Location name</label><input id="location" name="location_name" autocomplete="organization" maxlength="80" required placeholder="e.g. Main counter" />
-          <label for="setup-pin">Supervisor PIN <span>6–12 digits</span></label><input id="setup-pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]+" minlength="6" maxlength="12" autocomplete="new-password" required />
+          {#if !usesCiam()}<label for="setup-pin">Supervisor PIN <span>6–12 digits</span></label><input id="setup-pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]+" minlength="6" maxlength="12" autocomplete="new-password" required />{/if}
           {#if formError}<p class="form-error" role="alert">{formError}</p>{/if}
           <button class="primary-button" disabled={busy === 'setup'}>{busy === 'setup' ? 'Securing location…' : 'Open the promise desk'}</button>
         </form>
-        <p class="fine-print">Your operational data stays in this installation’s local database.</p>
+        <p class="fine-print">This hosted service stores your stock, customer references, names, and hold notes. A supervisor can set retention and erase the location.</p>
       </section>
     </main>
   {:else if data}
@@ -343,7 +524,7 @@
         <div class="scene-shade"></div>
         <div class="scene-content">
           <p class="eyebrow">{data.location_name}</p>
-          <h1>Promise desk</h1>
+          <p class="scene-heading">Promise desk</p>
           <p class="scene-note">A soft hold is a team signal, not a legal reservation.</p>
           <dl class="rail-metrics">
             <div><dt>Available now</dt><dd>{totalAvailable.toLocaleString()}</dd></div>
@@ -354,6 +535,7 @@
       </aside>
 
       <main id="main" class="workspace">
+        <h1 class="sr-only">Promise desk</h1>
         <nav class="section-nav" aria-label="Promise desk sections">
           <button class:active={tab === 'desk'} aria-current={tab === 'desk' ? 'page' : undefined} onclick={() => chooseTab('desk')}>Live desk <span>{data.active_holds.length}</span></button>
           <button class:active={tab === 'outcomes'} aria-current={tab === 'outcomes' ? 'page' : undefined} onclick={() => chooseTab('outcomes')}>Outcomes</button>
@@ -396,8 +578,10 @@
                     <div class="hold-main"><div><span class="sku">{hold.sku}</span><strong>{hold.quantity} × {hold.item_name}</strong></div><p>For <b>{hold.customer}</b> · by {hold.operator_name}{hold.order_note ? ` · ${hold.order_note}` : ''}</p></div>
                     <div class="hold-time"><strong>{relativeExpiry(hold.expires_at, now)}</strong><span>until {formatTime(hold.expires_at)}</span></div>
                     <div class="hold-actions">
-                      <button class="convert-button" disabled={busy === hold.id || !online} onclick={() => resolve(hold, 'convert')}>{busy === hold.id ? 'Working…' : 'Convert'}</button>
-                      <button class="release-button" disabled={busy === hold.id || !online} onclick={() => resolve(hold, 'release')}>Release</button>
+                      {#if supervisor}
+                        <button class="convert-button" disabled={busy === hold.id || !online} onclick={() => resolve(hold, 'convert')}>{busy === hold.id ? 'Working…' : 'Convert'}</button>
+                        <button class="release-button" disabled={busy === hold.id || !online} onclick={() => resolve(hold, 'release')}>Release</button>
+                      {:else}<span class="muted">A supervisor resolves this hold.</span>{/if}
                     </div>
                   </li>
                 {/each}
@@ -405,7 +589,7 @@
             {/if}
           </section>
         {:else if tab === 'outcomes'}
-          <section class="panel-head"><div><p class="eyebrow">The completed ledger</p><h2>Recent outcomes</h2><p>Converted, released, and automatically expired promises.</p></div><button class="primary-button small" onclick={downloadExport} disabled={busy === 'export'}>{busy === 'export' ? 'Preparing…' : 'Export CSV'}</button></section>
+          <section class="panel-head"><div><p class="eyebrow">The completed ledger</p><h2>Recent outcomes</h2><p>Converted, released, and automatically expired promises.</p></div>{#if supervisor}<button class="primary-button small" onclick={downloadExport} disabled={busy === 'export'}>{busy === 'export' ? 'Preparing…' : 'Export CSV'}</button>{/if}</section>
           {#if data.recent_outcomes.length === 0}
             <section class="empty-state compact"><h2>No outcomes yet</h2><p>Resolve a live hold and its outcome will be recorded here permanently.</p></section>
           {:else}
@@ -419,10 +603,13 @@
             </div>
           {/if}
         {:else}
-          <section class="panel-head"><div><p class="eyebrow">Supervisor station</p><h2>Stock & settings</h2><p>Keep the shared list current and review its immutable activity trail.</p></div><div class="action-row"><button class="secondary-button" onclick={() => supervisor ? openModal('import') : openModal('unlock')}>Import CSV</button><button class="primary-button small" onclick={() => supervisor ? openModal('inventory') : openModal('unlock')}>Add stock</button></div></section>
-          <section class="settings-section"><div class="section-title"><div><h3>Inventory</h3><p>{data.inventory.length} shared SKU{data.inventory.length === 1 ? '' : 's'}</p></div>{#if !supervisor}<button class="quiet-button" onclick={() => openModal('unlock')}>Unlock to edit</button>{/if}</div>
+          <section class="panel-head"><div><p class="eyebrow">Supervisor station</p><h2>Stock & settings</h2><p>Keep the shared list current and review its immutable activity trail.</p></div>{#if supervisor}<div class="action-row"><button class="secondary-button" onclick={() => openModal('import')}>Import CSV</button><button class="primary-button small" onclick={() => openModal('inventory')}>Add stock</button></div>{/if}</section>
+          <section class="settings-section"><div class="section-title"><div><h3>Inventory</h3><p>{data.inventory.length} shared SKU{data.inventory.length === 1 ? '' : 's'}</p></div>{#if !supervisor}<span class="muted">Supervisor access required to edit.</span>{/if}</div>
             <ul class="settings-stock">{#each data.inventory as item}<li><div><strong>{item.sku}</strong><span>{item.name}</span></div><div><b>{item.on_hand}</b> on hand</div><button disabled={!supervisor} onclick={() => openModal('inventory', item)}>Edit</button></li>{/each}</ul>
           </section>
+          {#if supervisor}
+            <section class="settings-section privacy-controls"><div class="section-title"><div><h3>Data retention</h3><p>Remove resolved hold details after {retentionDays} days.</p></div><button class="secondary-button" onclick={() => openModal('privacy')}>Manage data</button></div><p class="muted">Retention removes resolved customer references, notes, and operator names. Erasing this location permanently removes its inventory, holds, sessions, and audit record.</p></section>
+          {/if}
           <section class="pro-section"><div><p class="eyebrow">Optional team convenience</p><h3>{license.unlocked ? 'Stock Promise Pro is active' : 'Add Pro reminders & profiles'}</h3><p>Core holds, supervisor controls, safety checks, audit history, and CSV export always remain available.</p></div>
             {#if license.unlocked}
               <div class="pro-controls"><label for="profile-name">Operator profile name</label><div class="inline-form"><input id="profile-name" bind:value={operatorName} maxlength="80" /><button class="secondary-button" onclick={addProfile}>Save profile</button></div>{#if profiles.length}<div class="chips">{#each profiles as profile}<button onclick={() => operatorName = profile}>{profile}</button>{/each}</div>{/if}<button class="primary-button small" onclick={enableReminders}>{reminders ? 'Reminders enabled' : 'Enable 5-minute reminders'}</button></div>
@@ -433,7 +620,7 @@
             <form class="restore-form" onsubmit={(event) => { event.preventDefault(); restoreLicense(event); }}><label for="license">Have a license? Paste it here</label><div class="inline-form"><input id="license" name="license" autocomplete="off" /><button class="secondary-button">Verify license</button></div></form>
           </section>
           <section class="settings-section"><div class="section-title"><div><h3>Audit trail</h3><p>Append-only record, newest first</p></div>{#if supervisor}<button class="icon-button" aria-label="Refresh audit trail" onclick={loadAudit}>↻</button>{/if}</div>
-            {#if !supervisor}<div class="locked-copy"><p>Unlock supervisor access to inspect the audit trail.</p><button class="secondary-button" onclick={() => openModal('unlock')}>Supervisor unlock</button></div>
+            {#if !supervisor}<div class="locked-copy"><p>Supervisor access is required to inspect the audit trail.</p></div>
             {:else if auditEntries.length === 0}<p class="muted">No recorded activity yet.</p>
             {:else}<ol class="audit-list">{#each auditEntries.slice(0, 30) as entry}<li><span class="audit-dot"></span><div><strong>{String(entry.event).replace('.', ' ')}</strong><p>{entry.actor} · {formatTime(entry.created_at)}</p></div></li>{/each}</ol>{/if}
           </section>
@@ -464,11 +651,15 @@
         <form onsubmit={(event) => { event.preventDefault(); saveInventory(event); }}><label for="sku">SKU</label><input id="sku" name="sku" maxlength="48" value={editingItem?.sku || ''} required autocapitalize="characters" /><label for="item-name">Item name</label><input id="item-name" name="name" maxlength="120" value={editingItem?.name || ''} required /><label for="on-hand">On-hand quantity</label><input id="on-hand" name="on_hand" type="number" min={editingItem?.held || 0} max="100000000" value={editingItem?.on_hand ?? 0} required />{#if editingItem?.held}<p class="form-help">At least {editingItem.held} units are currently held, so stock cannot be set lower.</p>{/if}{#if formError}<p class="form-error" role="alert">{formError}</p>{/if}<button class="primary-button full" disabled={busy === 'inventory'}>{busy === 'inventory' ? 'Saving…' : editingItem ? 'Save stock record' : 'Add to stock list'}</button></form>
       {:else if modal === 'import'}
         <p class="eyebrow">Bulk setup</p><h2 id="dialog-title">Import stock CSV</h2><p>Use a simple UTF-8 CSV with <code>sku,name,on_hand</code> headers. Existing SKUs are skipped so a bulk file never overwrites live counts.</p><label class="file-picker" for="csv-file">Choose CSV file</label><input id="csv-file" class="sr-only" type="file" accept=".csv,text/csv" onchange={importCsv} />{#if busy === 'import'}<p role="status">Importing rows…</p>{/if}{#if importReport}<p class="success-box" role="status">{importReport}</p>{/if}{#if formError}<p class="form-error" role="alert">{formError}</p>{/if}<button class="secondary-button full" onclick={closeModal}>Done</button>
+      {:else if modal === 'privacy'}
+        <p class="eyebrow">Supervisor control</p><h2 id="dialog-title">Manage shared data</h2><p>Set when resolved customer references, notes, and operator names are removed. This does not affect browser-only license or reminder preferences.</p>
+        <form onsubmit={(event) => { event.preventDefault(); saveRetention(event); }}><label for="retention-days">Retention period</label><select id="retention-days" name="retention_days" bind:value={retentionDays}><option value="30">30 days</option><option value="90">90 days</option><option value="180">180 days</option><option value="365">365 days</option><option value="730">730 days</option></select><button class="secondary-button full" disabled={busy === 'retention'}>{busy === 'retention' ? 'Saving…' : 'Save retention'}</button></form>
+        <hr /><h3>Erase this location</h3><p>This permanently deletes the shared inventory, customer references, holds, sessions, and audit record. It cannot be undone.</p><form onsubmit={(event) => { event.preventDefault(); eraseLocation(event); }}><label for="erase-confirmation">Type DELETE to confirm</label><input id="erase-confirmation" name="confirmation" autocomplete="off" required /><button class="release-button full" disabled={busy === 'erase'}>{busy === 'erase' ? 'Erasing…' : 'Erase location data'}</button></form>{#if formError}<p class="form-error" role="alert">{formError}</p>{/if}
       {/if}
     </dialog>
   {/if}
 
   <footer class="site-footer">
-    <span>Soft holds, clearly seen.</span><nav aria-label="Legal"><a href="/privacy" onclick={(event) => { event.preventDefault(); navigate('/privacy'); }}>Privacy</a><a href="/terms" onclick={(event) => { event.preventDefault(); navigate('/terms'); }}>Terms</a></nav><span>Environmental image created with AI; no depicted people or products.</span>
+    <span>Timed shared holds for one location.</span><nav aria-label="Legal"><a href="/privacy" onclick={(event) => { event.preventDefault(); navigate('/privacy'); }}>Privacy</a><a href="/terms" onclick={(event) => { event.preventDefault(); navigate('/terms'); }}>Terms</a></nav><span>Built by Param Factory · build current · AI-assisted image.</span>
   </footer>
 {/if}

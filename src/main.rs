@@ -1,4 +1,5 @@
 mod api;
+mod auth;
 mod db;
 
 use std::{env, net::SocketAddr, path::PathBuf};
@@ -39,8 +40,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(8080);
-    let database_path =
-        env::var("DATABASE_PATH").unwrap_or_else(|_| "/data/stock-promise.db".into());
+    let supplied_database_path = env::var("DATABASE_PATH").ok();
+    let database_source = if supplied_database_path.is_some() {
+        "supplied"
+    } else {
+        "default"
+    };
+    let database_path = supplied_database_path.unwrap_or_else(default_database_path);
     if let Some(parent) = std::path::Path::new(&database_path).parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -71,9 +77,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         (pool, schema_status, instance_status)
     };
 
-    let state = AppState::new(
+    let auth = auth::AuthService::from_env();
+    let auth_mode = auth.mode.as_str();
+    let state = AppState::with_auth(
         pool,
         env::var("BUILD_SHA").unwrap_or_else(|_| COMPILED_BUILD_SHA.into()),
+        auth,
     );
     let expiry_pool = state.pool.clone();
     tokio::spawn(async move {
@@ -93,8 +102,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!(
         port,
         database = %database_path,
+        database_source,
         schema = %schema_status,
         instance_identity = %instance_status,
+        auth_mode,
         "configuration ready (PORT defaults to 8080; database and instance identity persist locally)"
     );
     let listener = tokio::net::TcpListener::bind(address).await?;
@@ -107,14 +118,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn default_database_path() -> String {
+    let durable = std::path::Path::new("/data");
+    if durable.is_dir() || std::fs::create_dir_all(durable).is_ok() {
+        "/data/stock-promise.db".into()
+    } else {
+        "stock-promise.db".into()
+    }
+}
+
 pub fn build_app(state: AppState, frontend: PathBuf) -> Router {
     let index = frontend.join("index.html");
-    let fallback = ServeDir::new(&frontend).not_found_service(ServeFile::new(index.clone()));
+    let fallback =
+        ServeDir::new(&frontend).not_found_service(ServeFile::new(frontend.join("404.html")));
     Router::new()
         .route("/health", get(api::health))
-        .nest("/api", api::routes())
+        .nest(
+            "/api",
+            api::routes().layer(middleware::from_fn_with_state(state.clone(), api::rate_limit)),
+        )
         .route_service("/privacy", get_service(ServeFile::new(index.clone())))
-        .route_service("/terms", get_service(ServeFile::new(index)))
+        .route_service("/terms", get_service(ServeFile::new(index.clone())))
+        .route_service("/demo", get_service(ServeFile::new(index.clone())))
+        .route_service("/auth/callback", get_service(ServeFile::new(index.clone())))
+        .route_service("/", get_service(ServeFile::new(index)))
         .fallback_service(fallback)
         .layer(middleware::from_fn(response_policy))
         .layer(TraceLayer::new_for_http())
@@ -128,7 +155,7 @@ pub fn build_app(state: AppState, frontend: PathBuf) -> Router {
         ))
         .layer(SetResponseHeaderLayer::if_not_present(
             HeaderName::from_static("content-security-policy"),
-            HeaderValue::from_static("default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in"),
+            HeaderValue::from_static("default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com; frame-src 'self' https://sociobotcustomers.ciamlogin.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com"),
         ))
         .layer(SetResponseHeaderLayer::if_not_present(
             HeaderName::from_static("strict-transport-security"),

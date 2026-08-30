@@ -9,11 +9,13 @@ CREATE TABLE IF NOT EXISTS settings (
   singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
   location_name TEXT NOT NULL,
   supervisor_pin_hash TEXT NOT NULL,
+  retention_days INTEGER NOT NULL DEFAULT 90 CHECK (retention_days BETWEEN 30 AND 730),
   created_at INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
+  role TEXT NOT NULL DEFAULT 'supervisor' CHECK (role IN ('staff', 'supervisor')),
   expires_at INTEGER NOT NULL,
   created_at INTEGER NOT NULL
 );

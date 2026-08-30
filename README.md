@@ -1,110 +1,87 @@
 # Stock Promise
 
-Stock Promise is a shared, single-location inventory hold desk for small
-distributors and resellers. Staff can place a short, visible hold while an order
-is being written, so the same scarce units are not promised twice. Supervisors
-can convert a hold into a stock deduction, release it, review automatic expiry,
-and export the complete outcome ledger.
+Stock Promise is a single-location hold desk for distributors and resellers who
+take orders in parallel. Staff create a timed hold before scarce stock is
+promised twice. Supervisors maintain stock, convert or release holds, review
+the append-only audit record, and export outcomes.
 
 Live product: <https://inventory-promise-hold.sociobot.in>
 
-## What v1 does
+## Try it first
 
-- Creates holds with an atomic SQLite write transaction and a current stock
-  check, even when several operators act at once.
-- Expires holds on the server every 30 seconds and during relevant requests.
-- Protects operational reads, hold creation, stock changes, conversions,
-  releases, audit history, and export with a shared supervisor PIN. Sessions
-  live only in the current browser tab, and unlock attempts are rate limited.
-- Records creates, changes, conversions, releases, and expiries in an
-  append-only audit log.
-- Imports a simple `sku,name,on_hand` CSV and exports every hold outcome.
-- Works at 390 px, from a keyboard, and shows loading, empty, error, expiry,
-  stale/offline, and conflict states.
-- Keeps core safety, audit, and export free. A $39 one-time Pro license adds
-  saved operator profiles and local five-minute browser notifications through
-  the Sociobot billing engine.
+Open <https://inventory-promise-hold.sociobot.in/demo> or choose **Try it with
+sample data**. The demo starts with three realistic SKUs and a live hold. It is
+stored only in `demo:stock-promise:state` in the current browser session; it
+never writes to a live stockroom. Reset it from the banner at any time.
 
-A soft hold is an internal coordination signal. It is not a legal reservation,
-sale, warehouse allocation, or replacement for the system of record.
+## Access and data
+
+The hosted live desk uses Sociobot Microsoft Entra External ID. CIAM app roles
+control the work boundary:
+
+- `staff` can view live availability and create holds.
+- `supervisor` can also maintain inventory, resolve holds, manage retention,
+  view the audit record, export CSV, and erase a whole location.
+
+The first CIAM supervisor creates the location. The SPA redirect URI must be
+registered as `https://inventory-promise-hold.sociobot.in/auth/callback`.
+
+Hosted operational data includes inventory, customer references, operator
+names, hold notes, outcomes, and audit events. Supervisors choose 30–730 days
+before resolved customer references, notes, and operator names are removed,
+and can permanently erase the complete location. Do not put payment, health,
+passwords, or other sensitive data into
+customer references or notes. See [/privacy](https://inventory-promise-hold.sociobot.in/privacy)
+and [/terms](https://inventory-promise-hold.sociobot.in/terms).
+
+A hold is an internal coordination signal. It is not a legal reservation,
+sale, warehouse allocation, or replacement for a system of record.
 
 ## Run locally
 
-Requirements: Node.js 22+, npm, and Rust 1.98+.
+Requirements: Node.js 22+, npm, and current stable Rust.
 
 ```sh
 npm ci
 npm run build
-DATABASE_PATH=./stock-promise.db FRONTEND_DIR=dist cargo run
+AUTH_MODE=local DATABASE_PATH=./stock-promise.db FRONTEND_DIR=dist cargo run
 ```
 
-Open <http://localhost:8080>. On first run, name the location and create a
-6–12 digit supervisor PIN. For frontend development, run the backend command
-above in one terminal and `npm run dev` in another; Vite proxies API requests to
-port 8080.
+`AUTH_MODE=local` is only for local development and test coverage. Production
+defaults to CIAM with the shared Sociobot tenant. The container starts with
+only `PORT` set (default `8080`), stores SQLite at `/data/stock-promise.db`,
+and uses a single replica. Optional production overrides are
+`ENTRA_TENANT_ID`, `ENTRA_TENANT_SUBDOMAIN`, `ENTRA_CLIENT_ID`,
+`DATABASE_PATH`, `FRONTEND_DIR`, `BUILD_SHA`, and `RUST_LOG`.
 
-The production container needs no configuration and listens on `PORT` (default
-8080). Its SQLite database is stored at `/data/stock-promise.db`. Mount `/data`
-on persistent storage and run exactly one replica; multiple SQLite replicas do
-not share transactions. Optional overrides are `DATABASE_PATH`, `FRONTEND_DIR`,
-`BUILD_SHA`, and `RUST_LOG`; none is required. Factory builds pass `BUILD_SHA`
-as a build argument, which is baked into the image and returned by `/health`.
+## Verify
 
-For the factory Azure Container Apps target, use the repository-owned release
-entry point:
+```sh
+npm ci
+npm test
+npm run check
+cargo fmt --all -- --check
+npm run build
+npm run test:e2e
+BUILD_SHA=local-verification cargo build --release --locked
+```
+
+Claims and their sandbox tests are listed in `.factory/claims.json`. The
+browser suite covers the sample demo, CSV export, mobile layout, keyboard,
+accessibility, service-worker update, offline demo reload, and security
+headers.
+
+## Deploy
 
 ```sh
 npm run deploy
 ```
 
-For an existing installation this command builds the image separately, then
-updates the image, Azure Files `/data` mount, and one-replica limit in one
-revision. The generic factory deploy is used only to bootstrap a missing app.
-The command creates or reuses the data share and fails unless Azure reports the
-exact ready topology and `/health` reports the committed source SHA. It also
-refuses a dirty source tree. Do not invoke the generic deploy command directly:
-its template replaces the volume configuration.
-
-## Test and verify
-
-```sh
-npm test          # Vitest plus Rust unit/transaction tests
-npm run check     # Svelte/TypeScript checks plus strict Clippy
-npm run test:e2e  # Playwright Chromium at a 390 px viewport
-npm run build     # reproducible frontend output in dist/
-docker build -t stock-promise .
-docker run --rm -p 8080:8080 -v stock-promise-data:/data stock-promise
-```
-
-Playwright is pinned to 1.58.2. The E2E test covers first-run setup, the private
-access gate, throttled PIN failures, stock and hold lifecycle, response policy,
-desktop keyboard use, 390 px mobile layout, accessibility, legal deep links,
-touch-target geometry, and browser console errors.
-
-## API outline
-
-- `GET /health` — health and build SHA
-- `GET /api/status` — public first-run readiness without operational data
-- `GET /api/bootstrap` — guarded location, live availability, holds, and outcomes
-- `POST /api/setup`, `POST|DELETE /api/session` — first run and supervisor access
-- `POST /api/inventory`, `POST /api/inventory/:id` — guarded stock writes
-- `POST /api/holds` — guarded atomic hold creation
-- `POST /api/holds/:id/resolve` — guarded convert or release
-- `GET /api/audit`, `GET /api/export.csv` — guarded records
-
-All state-changing inputs are validated at the edge and all SQL is
-parameterized. The service emits structured JSON logs, applies browser security
-headers, shuts down gracefully, and contains no analytics or third-party
-runtime scripts/fonts.
-
-## Product and design notes
-
-The researched scope is in `.factory/brief.json` when supplied by the factory.
-The product-specific visual thesis, accessibility decisions, generated-image
-prompt, review, and provenance are in [`.factory/design.md`](.factory/design.md).
-Operational verification and known gaps are in
-[`.factory/handoff.md`](.factory/handoff.md).
+The work-order deployment configuration mounts durable `/data` and enforces
+one replica for SQLite. The release command refuses a dirty tree, checks the
+mounted single-replica topology, and verifies `/health` returns the committed
+build SHA.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+[MIT](LICENSE)

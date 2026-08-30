@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://inventory-promise-hold.sociobot.in/sitemap.xml

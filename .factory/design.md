@@ -107,5 +107,7 @@ Full generation prompt:
 Generated with the factory Azure image model (`factory-image`) on 2026-08-28.
 The output is original to this product. Source PNG and prompt sidecar live in
 `assets/src/`; responsive WebP derivatives live in `frontend/public/assets/`.
+`stockroom-watch-social.jpg` is a 1200×630 crop derived locally from that same
+generated source for social metadata; it contains no readable product text.
 The footer discloses AI-assisted imagery. Authored SVG interface icons are MIT
 licensed with the application.

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "demo-isolated",
+    "claim": "The sample demo never saves to the live stockroom.",
+    "where": "landing page, demo banner, README",
+    "test": "npm run test:e2e -- --grep @claim:demo-isolated",
+    "sandbox": "fresh browser context opens /demo, creates a sample hold, and confirms no API write request is made"
+  },
+  {
+    "id": "csv-export",
+    "claim": "Supervisors can export hold outcomes as CSV.",
+    "where": "outcomes toolbar, README",
+    "test": "npm run test:e2e -- --grep @claim:csv-export",
+    "sandbox": "fresh demo browser context downloads CSV and asserts its header and a sample outcome"
+  },
+  {
+    "id": "offline-demo",
+    "claim": "The sample demo opens offline after its first visit.",
+    "where": "README",
+    "test": "npm run test:e2e -- --grep @claim:offline-demo",
+    "sandbox": "fresh browser context visits /demo, waits for service worker control, goes offline, and reloads"
+  },
+  {
+    "id": "role-boundary",
+    "claim": "Staff create holds; supervisors change stock and resolve holds.",
+    "where": "live access screen, README",
+    "test": "cargo test claim_role_boundary_staff_can_hold_but_not_change_or_resolve_stock --quiet",
+    "sandbox": "in-memory local auth state gives a staff session and asserts create hold is allowed while inventory and resolution are denied"
+  },
+  {
+    "id": "rate-limit",
+    "claim": "The API slows excessive requests with a retry time.",
+    "where": "README",
+    "test": "cargo test claim_rate_limit_returns_retry_after_for_excessive_status_requests --quiet",
+    "sandbox": "fresh in-memory app sends more than the public status allowance from one forwarded client IP and asserts 429 plus Retry-After"
+  },
+  {
+    "id": "retention-redaction",
+    "claim": "Supervisors can remove resolved hold details after a chosen retention period.",
+    "where": "data retention settings, privacy page, README",
+    "test": "cargo test retention_redacts_resolved_hold_personal_fields_but_keeps_audit_rows --quiet",
+    "sandbox": "in-memory SQLite marks an old resolved hold and asserts its customer, note, and operator fields are redacted while the audit row remains"
+  }
+]
