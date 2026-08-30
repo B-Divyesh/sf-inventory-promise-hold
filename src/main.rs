@@ -19,7 +19,7 @@ use tower_http::{
     set_header::SetResponseHeaderLayer,
     trace::TraceLayer,
 };
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 pub use api::AppState;
@@ -68,13 +68,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "existing",
         )
     } else {
-        let pool = SqlitePoolOptions::new()
-            .max_connections(8)
-            .connect_with(options)
-            .await?;
-        let schema_status = db::prepare_schema(&pool).await?;
-        let instance_status = db::ensure_instance_id(&pool, &Uuid::new_v4().to_string()).await?;
-        (pool, schema_status, instance_status)
+        let mut attempt = 1_u8;
+        loop {
+            match SqlitePoolOptions::new()
+                .max_connections(8)
+                .connect_with(options.clone())
+                .await
+            {
+                Ok(pool) => match db::prepare_schema(&pool).await {
+                    Ok(schema_status) => {
+                        match db::ensure_instance_id(&pool, &Uuid::new_v4().to_string()).await {
+                            Ok(instance_status) => break (pool, schema_status, instance_status),
+                            Err(error) => {
+                                pool.close().await;
+                                if attempt == 12 {
+                                    return Err(Box::new(error) as Box<dyn std::error::Error>);
+                                }
+                                warn!(attempt, %error, "durable database identity is not ready; retrying");
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        pool.close().await;
+                        if attempt == 12 {
+                            return Err(Box::new(error) as Box<dyn std::error::Error>);
+                        }
+                        warn!(attempt, %error, "durable database schema is locked during first boot; retrying");
+                    }
+                },
+                Err(error) => {
+                    if attempt == 12 {
+                        return Err(Box::new(error) as Box<dyn std::error::Error>);
+                    }
+                    warn!(attempt, %error, "durable database connection is not ready; retrying");
+                }
+            }
+            attempt += 1;
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
     };
 
     let auth = auth::AuthService::from_env();
