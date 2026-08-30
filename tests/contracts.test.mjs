@@ -17,12 +17,13 @@ test('container uses current stable Rust and declares durable /data', async () =
   assert.match(dockerfile, /VOLUME \["\/data"\]/);
 });
 
-test('runtime upgrades a durable database in place without changing journal mode', async () => {
+test('runtime uses a single SQLite writer compatible with the durable Azure Files mount', async () => {
   const main = await readFile(new URL('../src/main.rs', import.meta.url), 'utf8');
   const db = await readFile(new URL('../src/db.rs', import.meta.url), 'utf8');
-  assert.doesNotMatch(main, /\.journal_mode\(/);
+  assert.match(main, /\.journal_mode\(SqliteJournalMode::Delete\)/);
+  assert.match(main, /\.max_connections\(1\)/);
   assert.match(main, /prepare_schema/);
-  assert.match(main, /connect_lazy_with/);
+  assert.doesNotMatch(main, /connect_lazy_with/);
   assert.match(db, /ALTER TABLE sessions ADD COLUMN role/);
 });
 

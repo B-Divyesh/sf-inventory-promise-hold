@@ -13,7 +13,7 @@ use axum::{
     routing::{get, get_service},
     Router,
 };
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use tower_http::{
     services::{ServeDir, ServeFile},
     set_header::SetResponseHeaderLayer,
@@ -28,6 +28,18 @@ const COMPILED_BUILD_SHA: &str = match option_env!("BUILD_SHA") {
     Some(value) => value,
     None => "dev",
 };
+
+fn durable_database_options(database_path: &str) -> SqliteConnectOptions {
+    SqliteConnectOptions::new()
+        .filename(database_path)
+        .create_if_missing(true)
+        .foreign_keys(true)
+        // Azure Files is a network filesystem. SQLite's rollback journal is
+        // compatible with the single-writer deployment, whereas WAL needs
+        // shared-memory locking that can leave a fresh mounted file wedged.
+        .journal_mode(SqliteJournalMode::Delete)
+        .busy_timeout(std::time::Duration::from_secs(5))
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -51,61 +63,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::fs::create_dir_all(parent)?;
     }
 
-    let database_exists = std::fs::metadata(&database_path)
-        .map(|metadata| metadata.len() > 0)
-        .unwrap_or(false);
-    let options = SqliteConnectOptions::new()
-        .filename(&database_path)
-        .create_if_missing(true)
-        .foreign_keys(true)
-        .busy_timeout(std::time::Duration::from_secs(5));
-    let (pool, schema_status, instance_status) = if database_exists {
-        (
-            SqlitePoolOptions::new()
-                .max_connections(8)
-                .connect_lazy_with(options),
-            "existing (connection deferred)",
-            "existing",
-        )
-    } else {
-        let mut attempt = 1_u8;
-        loop {
-            match SqlitePoolOptions::new()
-                .max_connections(8)
-                .connect_with(options.clone())
-                .await
-            {
-                Ok(pool) => match db::prepare_schema(&pool).await {
-                    Ok(schema_status) => {
-                        match db::ensure_instance_id(&pool, &Uuid::new_v4().to_string()).await {
-                            Ok(instance_status) => break (pool, schema_status, instance_status),
-                            Err(error) => {
-                                pool.close().await;
-                                if attempt == 12 {
-                                    return Err(Box::new(error) as Box<dyn std::error::Error>);
-                                }
-                                warn!(attempt, %error, "durable database identity is not ready; retrying");
+    let options = durable_database_options(&database_path);
+    let mut attempt = 1_u8;
+    let (pool, schema_status, instance_status) = loop {
+        match SqlitePoolOptions::new()
+            // One container replica and one pooled SQLite connection gives the
+            // Azure Files mount exactly one writer at every layer.
+            .max_connections(1)
+            .connect_with(options.clone())
+            .await
+        {
+            Ok(pool) => match db::prepare_schema(&pool).await {
+                Ok(schema_status) => {
+                    match db::ensure_instance_id(&pool, &Uuid::new_v4().to_string()).await {
+                        Ok(instance_status) => break (pool, schema_status, instance_status),
+                        Err(error) => {
+                            pool.close().await;
+                            if attempt == 12 {
+                                return Err(Box::new(error) as Box<dyn std::error::Error>);
                             }
+                            warn!(attempt, %error, "durable database identity is not ready; retrying");
                         }
                     }
-                    Err(error) => {
-                        pool.close().await;
-                        if attempt == 12 {
-                            return Err(Box::new(error) as Box<dyn std::error::Error>);
-                        }
-                        warn!(attempt, %error, "durable database schema is locked during first boot; retrying");
-                    }
-                },
+                }
                 Err(error) => {
+                    pool.close().await;
                     if attempt == 12 {
                         return Err(Box::new(error) as Box<dyn std::error::Error>);
                     }
-                    warn!(attempt, %error, "durable database connection is not ready; retrying");
+                    warn!(attempt, %error, "durable database schema is locked during first boot; retrying");
                 }
+            },
+            Err(error) => {
+                if attempt == 12 {
+                    return Err(Box::new(error) as Box<dyn std::error::Error>);
+                }
+                warn!(attempt, %error, "durable database connection is not ready; retrying");
             }
-            attempt += 1;
-            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         }
+        attempt += 1;
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
     };
 
     let auth = auth::AuthService::from_env();
@@ -316,5 +313,22 @@ mod tests {
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(payload["build_sha"], "exact-build-sha");
+    }
+
+    #[tokio::test]
+    async fn durable_database_uses_a_rollback_journal() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("durable.db");
+        let options = durable_database_options(path.to_str().unwrap());
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await
+            .unwrap();
+        let journal_mode: String = sqlx::query_scalar("PRAGMA journal_mode")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(journal_mode, "delete");
     }
 }
