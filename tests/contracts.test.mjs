@@ -23,6 +23,7 @@ test('runtime uses a single SQLite writer compatible with the durable Azure File
   assert.match(main, /\.journal_mode\(SqliteJournalMode::Delete\)/);
   assert.match(main, /\.max_connections\(1\)/);
   assert.match(main, /prepare_schema/);
+  assert.match(main, /recover_empty_database_path/);
   assert.doesNotMatch(main, /connect_lazy_with/);
   assert.match(db, /ALTER TABLE sessions ADD COLUMN role/);
 });

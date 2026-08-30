@@ -41,6 +41,20 @@ fn durable_database_options(database_path: &str) -> SqliteConnectOptions {
         .busy_timeout(std::time::Duration::from_secs(5))
 }
 
+/// A zero-byte SQLite file cannot contain application data. It can be left
+/// behind with a held SMB lease when a first boot is interrupted while Azure
+/// Files is mounted. Keep that artifact for diagnosis and use one stable,
+/// adjacent recovery filename instead of blocking all future starts on it.
+fn recover_empty_database_path(configured_path: String) -> (String, &'static str) {
+    match std::fs::metadata(&configured_path) {
+        Ok(metadata) if metadata.len() == 0 => (
+            format!("{configured_path}.recovered"),
+            "recovered from empty interrupted database",
+        ),
+        _ => (configured_path, "configured"),
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
@@ -53,12 +67,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|value| value.parse().ok())
         .unwrap_or(8080);
     let supplied_database_path = env::var("DATABASE_PATH").ok();
-    let database_source = if supplied_database_path.is_some() {
-        "supplied"
-    } else {
-        "default"
+    let using_supplied_database_path = supplied_database_path.is_some();
+    let configured_database_path = supplied_database_path.unwrap_or_else(default_database_path);
+    let (database_path, recovery_source) = recover_empty_database_path(configured_database_path);
+    let database_source = match (recovery_source, using_supplied_database_path) {
+        ("configured", true) => "supplied",
+        ("configured", false) => "default",
+        (_, _) => recovery_source,
     };
-    let database_path = supplied_database_path.unwrap_or_else(default_database_path);
     if let Some(parent) = std::path::Path::new(&database_path).parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -330,5 +346,18 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(journal_mode, "delete");
+    }
+
+    #[test]
+    fn empty_database_file_is_preserved_and_recovered_next_to_it() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("interrupted.db");
+        std::fs::File::create(&path).unwrap();
+
+        let (recovered, source) = recover_empty_database_path(path.display().to_string());
+
+        assert_eq!(source, "recovered from empty interrupted database");
+        assert_eq!(recovered, format!("{}.recovered", path.display()));
+        assert_eq!(std::fs::metadata(path).unwrap().len(), 0);
     }
 }
