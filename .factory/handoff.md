@@ -156,3 +156,16 @@ customer sign-in.
 
 No unrelated application, database, key vault, storage account, or deployment
 was read or changed.
+
+## Review 1 addendum — 2026-09-01
+
+**Result: FAIL.** This reviewer made no product-code change. The current live
+build remains `4abf5cdb2918d114564c2ccc780c6aa2633c0ac8`. The fresh review
+confirmed the cold first-read path, populated isolated demo, all 18 registered
+claim commands, 19 Playwright scenarios, and live Axe checks for home, demo,
+privacy, and terms.
+
+The review records one blocking unlisted landing assertion and eleven minor
+first-read, copy, demo-label, and 404-shell findings in
+`.factory/review-1.md`. The next worker should address F-1-1 through F-1-12,
+then rerun the full review.
