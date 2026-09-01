@@ -1,47 +1,82 @@
-# Stock Promise — verification 5 handoff
+# Stock Promise — repair 5 handoff
 
-**Result: FAIL**
+**Result: repaired and verified**
 
-- Candidate: `42d1acecc06636936823c34e7b25b7906c8b7a91`
+- Work order: `inventory-promise-hold-repair-5`
+- Failed candidate: `42d1acecc06636936823c34e7b25b7906c8b7a91`
+- Repair implementation: `942221be9f9e43d55640071fa9763ff9eb943f6c`
 - Live URL: <https://inventory-promise-hold.sociobot.in>
-- Checked: 2026-09-01 UTC
-- Full report: `.factory/verification-5.md`
+- Source report: `.factory/verification-5.md`
 
-## Release blockers
+## What changed
 
-1. **High — demo storage is not isolated.** The demo reads and writes the
-   non-demo `stock-promise:operator` local-storage key. Reset leaves that value
-   behind. A cached real license is also read on `/demo` and prepares a license
-   verification request. This conflicts with the visible “nothing is saved”
-   statement and the required demo namespace boundary.
-2. **Major — focus continuity is incomplete.** Escape closes the hold dialog
-   but does not return focus to its opener. Browser Back and Forward also leave
-   focus on the document body, and route announcements are stale or absent.
-3. **Major — claims coverage is incomplete.** All 14 listed claim commands pass,
-   but the broader demo storage statement and several README/privacy promises
-   do not have their own manifest entries and tagged sandbox tests.
+1. Demo stock, operator names, profiles, reminder settings, and license state
+   now use `sessionStorage` keys under `demo:stock-promise:*`. Demo code does
+   not read or write the live operator, session, profile, reminder, or
+   `sb_license:*` keys.
+2. **Reset demo** clears every product demo key and restores the shipped three
+   SKUs, one active hold, and one outcome. Leaving demo also discards the demo
+   namespace.
+3. Opening demo settings no longer reads the live audit endpoint. Demo CSV
+   import now updates the isolated sample instead of calling a live write API.
+4. Cached live license state cannot start a verification request from `/demo`.
+   A license explicitly pasted in demo uses the demo namespace and Reset
+   removes it.
+5. Closing a modal, including with Escape, restores focus to its opener.
+   Browser Back and Forward focus the new page heading and update the persistent
+   polite route announcement.
+6. The claims manifest now covers demo seed/reset, storage isolation, browser
+   storage, no tracking, and hosted Microsoft Entra access. Each new claim has
+   a dedicated tagged regression.
 
-## Confirmed working
+## Exact regression evidence
 
-- The first screen says what the product does, who it serves, and provides a
-  one-click sample demo.
-- `npm ci`, `npm test`, `npm run check`, formatting, script syntax, production
-  frontend build, 14/14 Playwright checks, and the locked release backend build
-  pass.
-- The live build SHA is the candidate SHA; key live assets match local output
-  byte-for-byte.
-- Normal, invalid, boundary, release, conversion, CSV, concurrent hold, audit,
-  and SQLite restart-persistence checks pass.
-- Live read allowance is 80 requests per minute and write allowance is 20;
-  the next request returns `429` with `Retry-After: 59`.
-- Microsoft sign-in uses `sociobotcustomers.ciamlogin.com`.
-- Desktop/mobile semantics, serious/critical Axe checks, touch targets, 200%
-  text reflow, reduced motion, normal console/page errors, response headers,
-  caching, service-worker update, offline demo reload, and link checks pass.
-- Live Lighthouse mobile: Performance 98, Accessibility 100, Best Practices
-  100, SEO 100; LCP 1.7 s, CLS 0, TBT 110 ms, 171 KiB transferred.
+The original candidate was reproduced before editing with hostile browser
+state. `/demo` displayed `Real workspace operator`, prepared a verification URL
+containing `real-cached-license`, wrote `Demo-only operator` to the live key,
+and left the live operator and license keys after Reset.
 
-## Reproduce
+The repaired `@claim:demo-isolated` test preloads live operator, supervisor,
+profile, reminder, supervisor-session, license, and cached-verdict fixtures. It
+then opens demo settings, imports CSV, creates a hold, and resets. Assertions:
+
+- zero `/api/*` requests;
+- zero license verification requests from the cached live token;
+- every live key remains byte-for-byte unchanged;
+- demo operator and state use `demo:stock-promise:*` before Reset;
+- no demo key remains after Reset.
+
+Focused dialog and history tests assert the original opener is focused after
+Escape, and that Back and Forward both focus and announce the route `<h1>`.
+
+## Verification completed
+
+- `npm ci`: 141 packages, 0 vulnerabilities.
+- `npm test`: 3 Vitest, 7 Node contract, and 17 Rust tests passed.
+- Every command in `.factory/claims.json`: 18/18 passed independently.
+- `npm run test:e2e`: 19/19 passed with Playwright 1.58.2.
+- `npm run check`: Svelte/TypeScript 0 errors and 0 warnings; Clippy passed
+  with warnings denied.
+- `cargo fmt --all -- --check`, deployment script syntax, and
+  `git diff --check`: passed.
+- `npm run build`: `dist/` produced; initial app JavaScript 94.66 KB raw /
+  33.86 KB gzip, CSS 21.06 KB raw / 5.57 KB gzip, mobile hero 15.4 KB.
+- `BUILD_SHA=repair-5-local cargo build --release --locked`: passed.
+- Release-binary load smoke: 200/200 `/health` responses, 0 bad identities,
+  1,097 ms total, about 182 requests/second.
+- Axe integration: zero serious or critical findings on home, live desk, demo,
+  privacy, and terms.
+- Browser coverage includes 1440px desktop, 390×844 mobile, keyboard-only
+  dialog use, 200% text reflow, 44px targets, reduced motion, offline demo
+  reload, service-worker update, request privacy, route metadata, security
+  headers, caching, and response policy.
+
+The release is deployed with `npm run deploy`. That command is scoped to
+`sf-inventory-promise-hold`, verifies the existing one-replica `/data` mount,
+and requires live `/health` to equal the final committed `HEAD` before it can
+report success.
+
+## Run and verify
 
 ```sh
 npm ci
@@ -50,11 +85,24 @@ npm run check
 cargo fmt --all -- --check
 npm run build
 npm run test:e2e
-BUILD_SHA=42d1acecc06636936823c34e7b25b7906c8b7a91 cargo build --release --locked
+BUILD_SHA=local-verification cargo build --release --locked
 ```
 
-Detailed commands, observations, and evidence paths are recorded in
-`.factory/verification-5.md` and `.factory/qa-artifacts/`.
+Open `/demo` for the isolated sample. The regression for the controller's exact
+failure is:
 
-No product code was changed. No deployment, infrastructure, database,
-key-vault, or unrelated service was read, modified, or restarted.
+```sh
+npm run test:e2e -- --grep @claim:demo-isolated
+```
+
+## Known gaps
+
+No release-blocking product gap remains from verification 5. A local container
+engine was unavailable, so the multi-stage image is built by the factory ACR
+deployment path; the locked frontend and release backend were built locally.
+No customer credential was used, so the hosted Entra redirect/configuration is
+covered by code, contract, and live redirect checks rather than an interactive
+customer sign-in.
+
+No unrelated application, database, key vault, storage account, or deployment
+was read or changed.
