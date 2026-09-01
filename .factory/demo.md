@@ -1,6 +1,7 @@
 # Stock Promise demo
 
-Open `/demo` or select **Try it with sample data** on the home page.
+Open `/?demo=1` or select **Try it with sample data** on the home page. The
+`/demo` route remains an equivalent direct link.
 
 The sample stockroom contains three plausible counter items, one timed hold for
 Northline Plumbing, and one converted outcome for Tideway Maintenance. It is

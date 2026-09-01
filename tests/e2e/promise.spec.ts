@@ -99,7 +99,14 @@ test('public routes keep one route-specific canonical and description', async ({
   await expect(page).toHaveTitle('Page not found — Stock Promise');
   await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://inventory-promise-hold.sociobot.in/404');
-  await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', 'Return to Stock Promise or try the sample stockroom.');
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', 'Return to Stock Promise or open the sample stockroom.');
+  await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+  await expect(page.locator('header .wordmark')).toBeVisible();
+  await expect(page.locator('footer')).toBeVisible();
+  await expect(page.locator('link[rel="icon"]')).toHaveCount(1);
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveCount(1);
+  const notFoundAccessibility = await new AxeBuilder({ page }).analyze();
+  expect(notFoundAccessibility.violations.filter((item) => ['serious', 'critical'].includes(item.impact || ''))).toEqual([]);
 });
 
 test('direct routes, cache policy, metadata, and security headers are production-safe', async ({ request }) => {
@@ -202,7 +209,7 @@ test('390px reduced-motion shell updates and explains an offline reload', async 
   expect(script).toMatch(/^http:\/\/127\.0\.0\.1:4178\/sw\.js\?v=/);
   await context.setOffline(true);
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await expect(page.getByText(/Demo.*sample data/i)).toBeVisible();
+  await expect(page.locator('.demo-banner')).toContainText(/Demo.*sample data/i);
   await expect(page.getByRole('heading', { name: 'Promise desk' })).toBeVisible();
   await context.close();
 });
@@ -240,6 +247,19 @@ test('390px targets are at least 44px and 200% text does not widen the demo', as
     };
   });
   expect(reflow.document, JSON.stringify(reflow.offenders)).toBeLessThanOrEqual(reflow.viewport);
+  await context.close();
+});
+
+test('390px first screen contains the job, action, and three plain facts', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await expect(page.getByRole('heading', { name: 'Hold scarce stock before it is promised twice.' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Try it with sample data' })).toBeVisible();
+  await expect(page.locator('.plain-facts')).toBeVisible();
+  const facts = await page.locator('.plain-facts').boundingBox();
+  expect(facts).not.toBeNull();
+  expect(facts!.y + facts!.height).toBeLessThanOrEqual(844);
   await context.close();
 });
 
@@ -317,7 +337,12 @@ test('@claim:demo-isolated demo storage and requests never cross into the real w
 test('@claim:demo-seed-reset demo starts with three SKUs and one hold, then Reset restores them', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
-  await page.goto('/demo', { waitUntil: 'networkidle' });
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await page.getByRole('link', { name: 'Try it with sample data' }).click();
+  await expect(page).toHaveURL('/?demo=1');
+  await expect(page.getByText('Demo — sample data, nothing is saved.')).toBeVisible();
+  await expect(page.locator('.header-status')).not.toContainText('Shared live');
+  await expect(page.getByRole('button', { name: 'Lock supervisor' })).toHaveCount(0);
   await expect(page.locator('.inventory-list > li')).toHaveCount(3);
   await expect(page.locator('.hold-list > li')).toHaveCount(1);
   await expect(page.getByText('Northline Plumbing order 418')).toBeVisible();

@@ -8,10 +8,10 @@
   },
   {
     "id": "demo-seed-reset",
-    "claim": "The demo starts with three sample SKUs and one active hold; Reset demo restores that sample.",
-    "where": "README, demo guide",
+    "claim": "The landing action opens a sample stockroom with three sample SKUs and one active hold; Reset demo restores that sample.",
+    "where": "landing hero, README, demo guide",
     "test": "npm run test:e2e -- --grep @claim:demo-seed-reset",
-    "sandbox": "fresh demo context asserts the seed, creates a second hold, resets, and asserts the original three SKUs and one hold with no persisted demo keys"
+    "sandbox": "fresh browser opens the landing page, enters /?demo=1 in one click, asserts the seed, creates a second hold, resets, and asserts the original three SKUs and one hold with no persisted demo keys"
   },
   {
     "id": "no-tracking",

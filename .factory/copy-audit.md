@@ -1,13 +1,14 @@
 # Stock Promise copy audit
 
-Audited: 2026-08-30. The landing page uses the terms **stock**, **hold**,
-**supervisor**, and **location** consistently.
+Audited: 2026-09-01. Every landing sentence is below the 22-word limit and
+contains none of the banned marketing terms. The first screen states the job,
+audience, sample action, and three facts before the 844 px mobile fold.
 
 | Landing sentence | Words | Result |
 | --- | ---: | --- |
 | Hold scarce stock before it is promised twice. | 8 | Pass |
 | For distributors and resellers taking orders in parallel, Stock Promise shows a timed team hold before stock is promised. | 17 | Pass |
-| See a working stockroom immediately. | 5 | Pass |
+| Open a sample stockroom. | 4 | Pass |
 | Timed holds expire automatically. | 4 | Pass |
 | The sample never changes a live stockroom. | 7 | Pass |
 | New Pro purchases are temporarily unavailable. | 6 | Pass |
@@ -32,3 +33,4 @@ No landing sentence exceeds 22 words or uses a banned plain-words term.
 | Person who creates a hold | staff |
 | Person who changes stock or resolves a hold | supervisor |
 | Single shared stockroom | location |
+| Permanent history of changes | audit record |

@@ -10,7 +10,12 @@
   type Tab = 'desk' | 'outcomes' | 'settings';
   type Modal = 'hold' | 'unlock' | 'inventory' | 'import' | 'privacy' | null;
 
-  let path = window.location.pathname;
+  function routeFromUrl(input = window.location.href): string {
+    const url = new URL(input, window.location.origin);
+    return url.searchParams.get('demo') === '1' ? '/demo' : url.pathname;
+  }
+
+  let path = routeFromUrl();
   let landing = path === '/';
   let demo = path === '/demo';
   let data: Bootstrap | null = null;
@@ -74,7 +79,7 @@
     const handleOffline = () => online = false;
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    const handlePopState = () => changeRoute(window.location.pathname, true);
+    const handlePopState = () => changeRoute(routeFromUrl(), true);
     window.addEventListener('popstate', handlePopState);
     return () => {
       clearInterval(clock);
@@ -87,7 +92,7 @@
 
   function navigate(next: string) {
     history.pushState({}, '', next);
-    changeRoute(next, false);
+    changeRoute(routeFromUrl(next), false);
   }
 
   function changeRoute(next: string, fromHistory: boolean) {
@@ -518,8 +523,12 @@
       <a href="/privacy" onclick={(event) => { event.preventDefault(); navigate('/privacy'); }}>Privacy</a>
     </nav>
     <div class="header-status">
-      <span class:offline={!online} class="connection"><i></i>{online ? 'Shared live' : 'Offline'}</span>
-      {#if data && !data.setup_required}
+      {#if demo}
+        <span class="sample-data-status">Sample data</span>
+      {:else}
+        <span class:offline={!online} class="connection"><i></i>{online ? 'Shared live' : 'Offline'}</span>
+      {/if}
+      {#if data && !data.setup_required && !demo}
         <button class="quiet-button header-action" aria-label={usesCiam() ? 'Sign out' : supervisor ? 'Lock supervisor' : 'Supervisor unlock'} onclick={() => usesCiam() || supervisor ? lockSupervisor() : openModal('unlock')}>
           <span class="header-action-full">{usesCiam() ? 'Sign out' : supervisor ? 'Lock supervisor' : 'Supervisor unlock'}</span>
           <span class="header-action-compact" aria-hidden="true">{usesCiam() ? '↗' : supervisor ? '🔒' : '🔓'}</span>
@@ -531,7 +540,7 @@
   {#if !online}<div class="offline-banner" role="status">You’re offline. Current figures may be stale; new promises are paused until the shared server reconnects.</div>{/if}
   {#if demo}<div class="demo-banner" role="status"><span><strong>Demo</strong> — sample data, nothing is saved.</span><button class="text-button" onclick={resetDemo}>Reset demo</button><a class="text-button" href="/" onclick={(event) => { event.preventDefault(); navigate('/'); }}>Start for real</a></div>{/if}
   {#if path === '/404'}
-    <main id="main" class="center-state"><p class="eyebrow">404</p><h1>This page is not here.</h1><p>Use the live desk or the sample stockroom to continue.</p><a class="primary-button" href="/" onclick={(event) => { event.preventDefault(); navigate('/'); }}>Return home</a></main>
+    <main id="main" class="center-state"><p class="eyebrow">404</p><h1>Page not found</h1><p>Use the live desk or the sample stockroom to continue.</p><a class="primary-button" href="/" onclick={(event) => { event.preventDefault(); navigate('/'); }}>Return home</a></main>
   {:else if landing}
     <main id="main" class="landing-page">
       <section class="landing-hero">
@@ -539,7 +548,7 @@
           <p class="eyebrow">One shared location</p>
           <h1>Hold scarce stock before it is promised twice.</h1>
           <p>For distributors and resellers taking orders in parallel, Stock Promise shows a timed team hold before stock is promised.</p>
-          <div class="landing-actions"><a class="primary-button" href="/demo" onclick={(event) => { event.preventDefault(); navigate('/demo'); }}>Try it with sample data</a><span>See a working stockroom immediately.</span></div>
+          <div class="landing-actions"><a class="primary-button" href="/?demo=1" onclick={(event) => { event.preventDefault(); navigate('/?demo=1'); }}>Try it with sample data</a><span>Open a sample stockroom.</span></div>
           <div class="plain-facts"><span>Timed holds expire automatically.</span><span>The sample never changes a live stockroom.</span><span>New Pro purchases are temporarily unavailable.</span></div>
           <button class="secondary-button" onclick={startLive}>Open the live desk</button>
         </div>
@@ -677,7 +686,7 @@
             </div>
           {/if}
         {:else}
-          <section class="panel-head"><div><p class="eyebrow">Supervisor station</p><h2>Stock & settings</h2><p>Keep the shared list current and review its immutable activity trail.</p></div>{#if supervisor}<div class="action-row"><button class="secondary-button" onclick={() => openModal('import')}>Import CSV</button><button class="primary-button small" onclick={() => openModal('inventory')}>Add stock</button></div>{/if}</section>
+          <section class="panel-head"><div><p class="eyebrow">Supervisor station</p><h2>Stock & settings</h2><p>Keep the shared list current and review its audit record.</p></div>{#if supervisor}<div class="action-row"><button class="secondary-button" onclick={() => openModal('import')}>Import CSV</button><button class="primary-button small" onclick={() => openModal('inventory')}>Add stock</button></div>{/if}</section>
           <section class="settings-section"><div class="section-title"><div><h3>Inventory</h3><p>{data.inventory.length} shared SKU{data.inventory.length === 1 ? '' : 's'}</p></div>{#if !supervisor}<span class="muted">Supervisor access required to edit.</span>{/if}</div>
             <ul class="settings-stock">{#each data.inventory as item}<li><div><strong>{item.sku}</strong><span>{item.name}</span></div><div><b>{item.on_hand}</b> on hand</div><button disabled={!supervisor} onclick={() => openModal('inventory', item)}>Edit</button></li>{/each}</ul>
           </section>
@@ -693,8 +702,8 @@
             {#if license.notice}<p class="license-notice">{license.notice}</p>{/if}
             <form class="restore-form" onsubmit={(event) => { event.preventDefault(); restoreLicense(event); }}><label for="license">Have a license? Paste it here</label><div class="inline-form"><input id="license" name="license" autocomplete="off" /><button class="secondary-button">Verify license</button></div></form>
           </section>
-          <section class="settings-section"><div class="section-title"><div><h3>Audit trail</h3><p>Append-only record, newest first</p></div>{#if supervisor}<button class="icon-button" aria-label="Refresh audit trail" onclick={loadAudit}>↻</button>{/if}</div>
-            {#if !supervisor}<div class="locked-copy"><p>Supervisor access is required to inspect the audit trail.</p></div>
+          <section class="settings-section"><div class="section-title"><div><h3>Audit record</h3><p>Past changes cannot be edited; newest first</p></div>{#if supervisor}<button class="icon-button" aria-label="Refresh audit record" onclick={loadAudit}>↻</button>{/if}</div>
+            {#if !supervisor}<div class="locked-copy"><p>Supervisor access is required to inspect the audit record.</p></div>
             {:else if auditEntries.length === 0}<p class="muted">No recorded activity yet.</p>
             {:else}<ol class="audit-list">{#each auditEntries.slice(0, 30) as entry}<li><span class="audit-dot"></span><div><strong>{String(entry.event).replace('.', ' ')}</strong><p>{entry.actor} · {formatTime(entry.created_at)}</p></div></li>{/each}</ol>{/if}
           </section>

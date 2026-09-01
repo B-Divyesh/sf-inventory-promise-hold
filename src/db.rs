@@ -111,9 +111,9 @@ pub async fn expire_due(pool: &SqlitePool) -> Result<u64, sqlx::Error> {
     Ok(count)
 }
 
-/// Retention never edits the append-only audit ledger. Instead it removes the
+/// Retention never edits the append-only audit record. Instead it removes the
 /// customer reference, note, and free-form operator name from resolved hold
-/// records after the supervisor-selected period. New audit events deliberately
+/// records after the supervisor-selected period. New audit entries deliberately
 /// omit those values, so the immutable ledger remains useful without retaining
 /// new customer content indefinitely.
 pub async fn redact_retained_hold_details(pool: &SqlitePool) -> Result<u64, sqlx::Error> {

@@ -14,19 +14,19 @@
 </header>
 <main id="legal-main" class="legal-copy">
   {#if kind === 'privacy'}
-    <p class="eyebrow">Product policy · 30 August 2026</p>
+    <p class="eyebrow">Product policy · 1 September 2026</p>
     <h1>Privacy for Stock Promise</h1>
     <p>Stock Promise stores the inventory, customer references, operator names, and hold notes that your team enters. The hosted service stores this operational data in its durable database.</p>
     <h2>What is stored</h2>
-    <p>Inventory records, temporary holds, outcomes, and an append-only audit trail are stored so the shared ledger works. Sociobot sign-in tokens stay in the current browser session. Operator preferences, an optional Pro license, and reminder preferences stay in this browser.</p>
+    <p>Inventory records, temporary holds, outcomes, and the audit record are stored so coworkers see the same stock. The audit record keeps past changes and cannot be edited. Sociobot sign-in tokens stay in the current browser session. Operator preferences, an optional Pro license, and reminder preferences stay in this browser.</p>
     <h2>What is sent elsewhere</h2>
-    <p>There is no advertising or behavioral analytics. Sign-in uses Sociobot CIAM. When an existing Pro license is verified, its token is sent to Sociobot’s billing API. New Pro purchases are temporarily unavailable.</p>
+    <p>There is no advertising or behavioral analytics. Sign-in uses Sociobot Microsoft Entra External ID. When an existing Pro license is verified, its token is sent to Sociobot’s billing API. New Pro purchases are temporarily unavailable.</p>
     <h2>Retention and control</h2>
-    <p>A supervisor can set a 30–730 day period before resolved customer references, hold notes, and operator names are removed. The append-only audit ledger does not include those values for new holds. A supervisor can also permanently erase the whole location, including inventory, holds, sessions, and its audit record. Clearing browser data removes browser-only preferences and license tokens, but does not erase shared records.</p>
+    <p>A supervisor can set a 30–730 day period before resolved customer references, hold notes, and operator names are removed. The audit record does not include those values for new holds. A supervisor can also permanently erase the whole location, including inventory, holds, sessions, and its audit record. Clearing browser data removes browser-only preferences and license tokens, but does not erase shared records.</p>
     <h2>Contact</h2>
     <p>For a data request, ask a supervisor for the location. Product privacy questions can be sent to <a href="mailto:privacy@sociobot.in">privacy@sociobot.in</a>.</p>
   {:else}
-    <p class="eyebrow">Product terms · 30 August 2026</p>
+    <p class="eyebrow">Product terms · 1 September 2026</p>
     <h1>Terms for temporary stock holds</h1>
     <p>Stock Promise is an operational coordination tool. A soft hold helps coworkers avoid duplicate promises while an order is being prepared; it does not create ownership, a sale, a warehouse allocation, or any legal right to goods.</p>
     <h2>Your responsibilities</h2>
@@ -36,7 +36,7 @@
     <h2>Pro license</h2>
     <p>New Stock Promise Pro purchases are temporarily unavailable. An existing valid Pro license enables saved operator profiles and on-device expiry reminders. Core holds and CSV export do not require Pro.</p>
     <h2>Fair use</h2>
-    <p>You may use the service for lawful inventory coordination. Do not attempt to disrupt the service, bypass access controls, or use it to misrepresent stock availability to customers.</p>
+    <p>You may use the service for lawful inventory coordination. Do not interfere with normal service use or present inaccurate stock availability to customers.</p>
   {/if}
   <button class="text-button" onclick={() => navigate('/')}>Return home</button>
 </main>

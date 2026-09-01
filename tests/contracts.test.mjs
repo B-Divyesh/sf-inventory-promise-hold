@@ -100,3 +100,24 @@ test('recorded unavailable checkout is not offered by the product source', async
   assert.match(legal, /New Stock Promise Pro purchases are temporarily unavailable\./);
   assert.doesNotMatch(`${app}\n${legal}\n${license}`, /\/checkout/);
 });
+
+test('every registered claim has one tagged sandbox test', async () => {
+  const manifest = JSON.parse(await readFile(new URL('../.factory/claims.json', import.meta.url), 'utf8'));
+  const source = (await Promise.all([
+    '../tests/e2e/promise.spec.ts',
+    '../src/api.rs',
+    '../src/auth.rs',
+    '../src/db.rs',
+  ].map((path) => readFile(new URL(path, import.meta.url), 'utf8')))).join('\n');
+  const ids = manifest.map((entry) => entry.id);
+  assert.equal(new Set(ids).size, ids.length);
+  for (const entry of manifest) {
+    assert.equal(typeof entry.claim, 'string');
+    assert.equal(typeof entry.where, 'string');
+    assert.equal(typeof entry.test, 'string');
+    assert.equal(typeof entry.sandbox, 'string');
+    const tag = `@claim:${entry.id}`;
+    assert.equal(source.split(tag).length - 1, 1, `${tag} must identify exactly one test`);
+    assert.match(entry.test, /(?:npm run test:e2e -- --grep @claim:|cargo test claim_)/);
+  }
+});

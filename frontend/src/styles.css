@@ -53,6 +53,7 @@ img { display: block; max-width: 100%; }
 .connection { display: flex; align-items: center; gap: 7px; color: var(--mint); font-size: .83rem; font-weight: 700; }
 .connection i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 4px rgba(116,201,160,.12); }
 .connection.offline { color: var(--coral); }
+.sample-data-status { color: var(--amber-light); font-size: .83rem; font-weight: 750; }
 .offline-banner { position: relative; z-index: 25; padding: 10px 20px; color: #271500; background: var(--amber-light); font-size: .9rem; font-weight: 650; text-align: center; }
 .demo-banner { position: relative; z-index: 25; display: flex; min-height: 44px; align-items: center; justify-content: center; gap: 14px; padding: 6px 20px; color: var(--chalk); background: #16343a; font-size: .88rem; }
 .demo-banner strong { color: var(--amber-light); }
@@ -249,6 +250,7 @@ code { padding: 2px 5px; color: var(--amber-light); background: #061115; }
   .wordmark { gap: 6px; }
   .wordmark span { font-size: 1rem; }
   .connection { display: none; }
+  .sample-data-status { display: none; }
   .top-nav { gap: 0; }
   .top-nav a { font-size: .8rem; }
   .header-status { gap: 4px; }
@@ -257,10 +259,13 @@ code { padding: 2px 5px; color: var(--amber-light); background: #061115; }
   .header-action-compact { display: inline; font-size: .78rem; }
   .demo-banner { align-items: flex-start; flex-wrap: wrap; justify-content: flex-start; gap: 4px 12px; }
   .landing-page { padding: 0 16px 56px; }
-  .landing-hero { display: flex; flex-direction: column-reverse; margin: 0 -16px; }
-  .landing-copy { padding: 40px 20px 48px; }
-  .landing-copy h1 { font-size: 2.55rem; }
-  .landing-hero picture { min-height: 300px; }
+  .landing-hero { display: flex; flex-direction: column; margin: 0 -16px; }
+  .landing-copy { padding: 24px 20px 28px; }
+  .landing-copy h1 { margin-bottom: 14px; font-size: 2.2rem; }
+  .landing-copy > p:not(.eyebrow) { margin-bottom: 8px; font-size: 1rem; }
+  .landing-actions { margin: 12px 0; }
+  .plain-facts { margin: 4px 0 16px; }
+  .landing-hero picture { min-height: 220px; }
   .landing-section { padding: 40px 0; }
   .quiet-button { font-size: .78rem; }
   .app-frame { display: block; }

@@ -29,7 +29,7 @@ export function metadataForPath(path: string): RouteMetadata {
     case '/404':
       return {
         title: 'Page not found — Stock Promise',
-        description: 'Return to Stock Promise or try the sample stockroom.',
+        description: 'Return to Stock Promise or open the sample stockroom.',
         canonicalPath: '/404',
       };
     default:
