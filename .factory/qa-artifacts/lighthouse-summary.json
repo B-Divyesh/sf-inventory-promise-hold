@@ -1,0 +1,16 @@
+{
+  "categories": {
+    "performance": 98,
+    "accessibility": 100,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metrics": {
+    "fcp": "1.5 s",
+    "lcp": "1.7 s",
+    "cls": "0",
+    "tbt": "110 ms",
+    "speed_index": "1.5 s"
+  },
+  "transferred": "Total size was 171 KiB"
+}

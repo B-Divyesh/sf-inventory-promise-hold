@@ -1,85 +1,60 @@
-# Stock Promise — repair handoff
+# Stock Promise — verification 5 handoff
 
-Work order: `inventory-promise-hold-repair-4`
-Base verifier report: `6564e8b7d65c2df9d89f4111040e883c7ca82f73` / candidate `8e20c412163e67b94148d85552e16a655e60cc84`
-Verified locally: 2026-09-01 UTC
+**Result: FAIL**
 
-## Repaired release blockers
+- Candidate: `42d1acecc06636936823c34e7b25b7906c8b7a91`
+- Live URL: <https://inventory-promise-hold.sociobot.in>
+- Checked: 2026-09-01 UTC
+- Full report: `.factory/verification-5.md`
 
-- Removed every product purchase link to the independently recorded unavailable
-  checkout. The product now plainly says that new Pro purchases are temporarily
-  unavailable, while existing licenses can be restored and verified in settings.
-  A regression test asserts that no `/checkout` link is offered. The shared
-  checkout endpoint was not queried or changed because it is operator-owned.
-- Expanded `.factory/claims.json` from six to fourteen tested claims. It now
-  covers automatic expiry, contested-stock protection, append-only audit,
-  location erasure, Pro profiles/reminders, license restore, core features
-  without Pro, and the honest checkout status. Rust claim tests carry literal
-  `@claim:<id>` tags.
-- Added lifecycle regressions for automatic expiry (including its audit row),
-  atomic competing holds, immutable/redacted audit data, and full location
-  erasure with the append-only trigger restored.
-- Fixed mobile target sizing and 200% text reflow. Header navigation, legal
-  links, profile chips, and the compact supervisor action meet 44px targets;
-  the mobile desk tabs now reflow in a three-column grid without widening a
-  390px document at 200% root text.
-- Replaced duplicated Svelte head tags with one controlled metadata set.
-  `/`, `/demo`, `/privacy`, `/terms`, and `/404` each have one canonical,
-  one description, and a route-specific title. The footer now shows the build
-  identifier supplied at build time.
+## Release blockers
 
-## Verification evidence
+1. **High — demo storage is not isolated.** The demo reads and writes the
+   non-demo `stock-promise:operator` local-storage key. Reset leaves that value
+   behind. A cached real license is also read on `/demo` and prepares a license
+   verification request. This conflicts with the visible “nothing is saved”
+   statement and the required demo namespace boundary.
+2. **Major — focus continuity is incomplete.** Escape closes the hold dialog
+   but does not return focus to its opener. Browser Back and Forward also leave
+   focus on the document body, and route announcements are stale or absent.
+3. **Major — claims coverage is incomplete.** All 14 listed claim commands pass,
+   but the broader demo storage statement and several README/privacy promises
+   do not have their own manifest entries and tagged sandbox tests.
 
-Clean dependency install completed with `npm ci` (141 packages, 0 reported
-vulnerabilities). These commands passed after the repair:
+## Confirmed working
 
-```sh
-npm test                         # 3 Vitest, 7 contracts, 17 Rust tests
-npm run check                    # Svelte/TypeScript and clippy -D warnings
-cargo fmt --all -- --check
-bash -n deploy/*.sh
-git diff --check
-npm run build                    # dist/; initial JS 33.32 KiB gzip, CSS 5.57 KiB gzip
-npm run test:e2e                 # 14/14 Playwright checks
-```
+- The first screen says what the product does, who it serves, and provides a
+  one-click sample demo.
+- `npm ci`, `npm test`, `npm run check`, formatting, script syntax, production
+  frontend build, 14/14 Playwright checks, and the locked release backend build
+  pass.
+- The live build SHA is the candidate SHA; key live assets match local output
+  byte-for-byte.
+- Normal, invalid, boundary, release, conversion, CSV, concurrent hold, audit,
+  and SQLite restart-persistence checks pass.
+- Live read allowance is 80 requests per minute and write allowance is 20;
+  the next request returns `429` with `Retry-After: 59`.
+- Microsoft sign-in uses `sociobotcustomers.ciamlogin.com`.
+- Desktop/mobile semantics, serious/critical Axe checks, touch targets, 200%
+  text reflow, reduced motion, normal console/page errors, response headers,
+  caching, service-worker update, offline demo reload, and link checks pass.
+- Live Lighthouse mobile: Performance 98, Accessibility 100, Best Practices
+  100, SEO 100; LCP 1.7 s, CLS 0, TBT 110 ms, 171 KiB transferred.
 
-Every exact command in `.factory/claims.json` was also run. That is seven
-isolated browser claim checks and seven isolated Rust claim checks.
-
-Browser coverage includes 390px mobile, a 1440px keyboard desk flow, visible
-focus, dialogs and Escape, serious/critical Axe checks, 44px target checks,
-200% text reflow, reduced motion, offline demo reload, service-worker update,
-privacy request boundary, route metadata, cache/security headers, and local
-response policy. The repository has no `verify-url.sh`; its checks are covered
-by the Playwright route and Axe integration.
-
-Local Lighthouse desktop on the locally served production frontend
-(`/tmp/stock-promise-lighthouse-final.json`) reported Performance 100,
-Accessibility 100, Best Practices 100, SEO 100, LCP 0.5 s, and CLS 0. A local
-`/health` check returned the supplied build id.
-
-## Run and deploy
+## Reproduce
 
 ```sh
 npm ci
 npm test
 npm run check
+cargo fmt --all -- --check
 npm run build
 npm run test:e2e
-BUILD_SHA=<commit-sha> cargo build --release --locked
-npm run deploy
+BUILD_SHA=42d1acecc06636936823c34e7b25b7906c8b7a91 cargo build --release --locked
 ```
 
-The container serves `PORT` (default 8080), uses SQLite at
-`/data/stock-promise.db`, and the scoped release script verifies the one-replica
-`/data` mount plus `/health` build identity.
+Detailed commands, observations, and evidence paths are recorded in
+`.factory/verification-5.md` and `.factory/qa-artifacts/`.
 
-## Known operational gap
-
-The shared Pro checkout remains unavailable and is explicitly out of this
-product work order. Stock Promise does not send customers to it or claim that a
-new purchase can be completed. Existing license restoration remains available;
-core holds and CSV export remain usable without Pro.
-
-No prohibited service, database, key vault, or shared resource was read,
-changed, or restarted during this repair.
+No product code was changed. No deployment, infrastructure, database,
+key-vault, or unrelated service was read, modified, or restarted.
