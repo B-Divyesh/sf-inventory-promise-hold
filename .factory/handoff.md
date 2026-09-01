@@ -4,7 +4,8 @@
 
 - Work order: `inventory-promise-hold-repair-5`
 - Failed candidate: `42d1acecc06636936823c34e7b25b7906c8b7a91`
-- Repair implementation: `942221be9f9e43d55640071fa9763ff9eb943f6c`
+- Demo/focus repair: `942221be9f9e43d55640071fa9763ff9eb943f6c`
+- Offline/update repair: `9286a186dd7c5eb0f0c749806783f0767ae60257`
 - Live URL: <https://inventory-promise-hold.sociobot.in>
 - Source report: `.factory/verification-5.md`
 
@@ -79,6 +80,31 @@ The release is deployed with `npm run deploy`. That command is scoped to
 `sf-inventory-promise-hold`, verifies the existing one-replica `/data` mount,
 and requires live `/health` to equal the final committed `HEAD` before it can
 report success.
+
+## Live evidence
+
+Post-deploy browser checks on the repair image at
+`9286a186dd7c5eb0f0c749806783f0767ae60257` passed:
+
+- revision `sf-inventory-promise-hold--0000029`, one replica, with
+  `sf-inventory-promise-hold-data` mounted at `/data`;
+- `/health` returned that full SHA and status `ok`;
+- `verify-url.sh`: HTTP 200, 597 ms load, correct title and language, one H1,
+  one main landmark, no missing image alternatives, and no console errors;
+- hostile real operator/session/profile/reminder/license fixtures remained
+  unchanged, the demo operator started blank, Reset left no demo key, and no
+  product API or license-verification request occurred;
+- dialog Escape, Privacy navigation, Back, and Forward all restored the
+  expected focus and route announcement;
+- Axe found zero serious or critical issues on home, demo, privacy, and terms;
+- the service worker used the full build SHA in its script URL and cache name,
+  precached the current hashed JS and CSS, and reloaded `/demo` offline after
+  its first visit with no console errors;
+- Lighthouse mobile: Performance 99, Accessibility 100, Best Practices 100,
+  SEO 100; FCP 1.5 s, LCP 1.65 s, CLS 0, TBT 99 ms, 176,776 bytes transferred.
+
+The final handoff-only commit is redeployed through the same SHA-verifying
+release command so live identity remains equal to the repository `HEAD`.
 
 ## Run and verify
 
