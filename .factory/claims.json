@@ -38,7 +38,63 @@
     "id": "retention-redaction",
     "claim": "Supervisors can remove resolved hold details after a chosen retention period.",
     "where": "data retention settings, privacy page, README",
-    "test": "cargo test retention_redacts_resolved_hold_personal_fields_but_keeps_audit_rows --quiet",
+    "test": "cargo test claim_retention_redaction_removes_personal_fields_but_keeps_audit_rows --quiet",
     "sandbox": "in-memory SQLite marks an old resolved hold and asserts its customer, note, and operator fields are redacted while the audit row remains"
+  },
+  {
+    "id": "automatic-expiry",
+    "claim": "Timed holds expire automatically.",
+    "where": "landing page, active-hold form, outcomes, README",
+    "test": "cargo test claim_automatic_expiry_releases_stock_and_records_an_outcome --quiet",
+    "sandbox": "in-memory SQLite contains a past-due active hold; bootstrap runs expiry and asserts stock is available, the outcome is expired, and an audit event exists"
+  },
+  {
+    "id": "contested-stock-protection",
+    "claim": "Stock Promise prevents a second hold from taking unavailable stock.",
+    "where": "landing headline, README",
+    "test": "cargo test claim_contested_stock_protection_allows_only_one_competing_hold --quiet",
+    "sandbox": "two concurrent authenticated hold attempts request two units from three available units; exactly one is created and one conflicts"
+  },
+  {
+    "id": "append-only-audit",
+    "claim": "Supervisors can review an append-only audit record.",
+    "where": "settings, privacy page, README",
+    "test": "cargo test claim_append_only_audit_keeps_hold_outcomes_immutable --quiet",
+    "sandbox": "in-memory SQLite converts a hold, verifies the recorded audit event, and proves an audit-row delete fails"
+  },
+  {
+    "id": "location-erasure",
+    "claim": "A supervisor can permanently erase the whole location.",
+    "where": "data controls, privacy page, README",
+    "test": "cargo test claim_location_erasure_removes_operational_data_and_restores_audit_protection --quiet",
+    "sandbox": "an in-memory location with stock, a hold, session, and audit event is erased after an explicit DELETE confirmation; all location tables are empty and the audit trigger is restored"
+  },
+  {
+    "id": "pro-profiles-reminders",
+    "claim": "A verified Pro license enables saved operator profiles and optional on-device expiry reminders.",
+    "where": "settings, privacy page, terms, README",
+    "test": "npm run test:e2e -- --grep @claim:pro-profiles-reminders",
+    "sandbox": "fresh demo browser has a cached verified test license and a near-expiry sample hold; it saves a profile, enables notifications, observes an on-device notification, and reuses the profile in the hold form"
+  },
+  {
+    "id": "pro-license-restore",
+    "claim": "Existing license holders can restore a license in settings.",
+    "where": "settings, privacy page, terms, README",
+    "test": "npm run test:e2e -- --grep @claim:pro-license-restore",
+    "sandbox": "fresh demo browser pastes a fixture license; an intercepted billing verification returns valid, the license is stored locally, and Pro controls appear without leaving the product"
+  },
+  {
+    "id": "pro-checkout-status",
+    "claim": "New Pro purchases are temporarily unavailable.",
+    "where": "landing page, settings, privacy page, terms, README",
+    "test": "npm run test:e2e -- --grep @claim:pro-checkout-status",
+    "sandbox": "fresh local home and demo pages show the unavailable status and expose no checkout link, preventing the independently recorded checkout 404 from reaching customers"
+  },
+  {
+    "id": "core-features-no-pro",
+    "claim": "Core holds and CSV export do not require Pro.",
+    "where": "pricing, settings, terms",
+    "test": "npm run test:e2e -- --grep @claim:core-features-no-pro",
+    "sandbox": "fresh demo browser without a license creates a hold and exports its outcomes CSV while Pro controls remain locked"
   }
 ]

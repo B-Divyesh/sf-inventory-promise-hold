@@ -2,7 +2,8 @@
   import { onMount, tick } from 'svelte';
   import { request, getSession, setSession, ResponseError, type Bootstrap, type InventoryItem, type Hold } from './api';
   import { configureAuth, signIn, signOut, usesCiam } from './auth';
-  import { buyUrl, captureLicense, checkLicense, storeLicense, type LicenseState } from './license';
+  import { captureLicense, checkLicense, storeLicense, type LicenseState } from './license';
+  import { applyRouteMetadata } from './metadata';
   import { formatTime, relativeExpiry } from './time';
   import Legal from './Legal.svelte';
 
@@ -38,6 +39,7 @@
   let importReport = '';
   let retentionDays = 90;
   const notified = new Set<string>();
+  const buildId = import.meta.env.VITE_BUILD_SHA || 'dev';
 
   $: filteredInventory = (data?.inventory || []).filter((item) =>
     `${item.sku} ${item.name}`.toLowerCase().includes(query.trim().toLowerCase())
@@ -47,13 +49,14 @@
   $: expiringSoon = (data?.active_holds || []).filter((hold) => hold.expires_at * 1000 - now < 15 * 60_000).length;
 
   onMount(() => {
+    applyRouteMetadata(path);
     captureLicense();
     checkLicense().then((value) => license = value);
     if (demo) load();
     else if (path === '/auth/callback') {
       path = '/'; landing = false; prepareLive();
     } else if (!landing && path !== '/privacy' && path !== '/terms' && path !== '/404') {
-      path = '/404'; loading = false;
+      path = '/404'; applyRouteMetadata(path); loading = false;
     } else {
       loading = false;
     }
@@ -71,6 +74,7 @@
       path = window.location.pathname;
       demo = path === '/demo';
       landing = path === '/';
+      applyRouteMetadata(path);
       if (demo) load();
       else if (landing) { data = null; accessRequired = false; loading = false; }
     };
@@ -89,6 +93,7 @@
     path = next;
     demo = next === '/demo';
     landing = next === '/';
+    applyRouteMetadata(next);
     if (demo) load();
     if (landing) { data = null; accessRequired = false; loading = false; }
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -372,13 +377,15 @@
     if (!('Notification' in window)) { announcement = 'This browser does not support notifications.'; return; }
     const permission = await Notification.requestPermission();
     reminders = permission === 'granted'; localStorage.setItem('stock-promise:reminders', String(reminders));
+    if (reminders) sendReminders();
     announcement = reminders ? 'Five-minute expiry reminders enabled on this device.' : 'Notification permission was not granted.';
   }
 
   function sendReminders() {
     if (!license.unlocked || !reminders || !data || Notification.permission !== 'granted') return;
     for (const hold of data.active_holds) {
-      if (hold.expires_at * 1000 - Date.now() <= 5 * 60_000 && !notified.has(hold.id)) {
+      const remaining = hold.expires_at * 1000 - Date.now();
+      if (remaining > 0 && remaining <= 5 * 60_000 && !notified.has(hold.id)) {
         new Notification(`${hold.sku} hold expires soon`, { body: `${hold.quantity} for ${hold.customer} · ${relativeExpiry(hold.expires_at)}`, icon: '/mark.svg' });
         notified.add(hold.id);
       }
@@ -425,10 +432,6 @@
   function message(error: unknown): string { return error instanceof Error ? error.message : 'Something went wrong. Try again.'; }
 </script>
 
-<svelte:head>
-  <title>{path === '/demo' ? 'Demo — Stock Promise' : path === '/404' ? 'Page not found — Stock Promise' : 'Stock Promise — timed inventory holds'}</title>
-</svelte:head>
-
 {#if path === '/privacy' || path === '/terms'}
   <Legal kind={path === '/privacy' ? 'privacy' : 'terms'} {navigate} />
 {:else}
@@ -445,8 +448,9 @@
     <div class="header-status">
       <span class:offline={!online} class="connection"><i></i>{online ? 'Shared live' : 'Offline'}</span>
       {#if data && !data.setup_required}
-        <button class="quiet-button" onclick={() => usesCiam() || supervisor ? lockSupervisor() : openModal('unlock')}>
-          {usesCiam() ? 'Sign out' : supervisor ? 'Lock supervisor' : 'Supervisor unlock'}
+        <button class="quiet-button header-action" aria-label={usesCiam() ? 'Sign out' : supervisor ? 'Lock supervisor' : 'Supervisor unlock'} onclick={() => usesCiam() || supervisor ? lockSupervisor() : openModal('unlock')}>
+          <span class="header-action-full">{usesCiam() ? 'Sign out' : supervisor ? 'Lock supervisor' : 'Supervisor unlock'}</span>
+          <span class="header-action-compact" aria-hidden="true">{usesCiam() ? '↗' : supervisor ? '🔒' : '🔓'}</span>
         </button>
       {/if}
     </div>
@@ -466,14 +470,14 @@
           <h1>Hold scarce stock before it is promised twice.</h1>
           <p>For distributors and resellers taking orders in parallel, Stock Promise shows a timed team hold before stock is promised.</p>
           <div class="landing-actions"><a class="primary-button" href="/demo" onclick={(event) => { event.preventDefault(); navigate('/demo'); }}>Try it with sample data</a><span>See a working stockroom immediately.</span></div>
-          <div class="plain-facts"><span>Timed holds expire automatically.</span><span>Live data stays on this service.</span><span>Core holds and CSV export are free.</span></div>
+          <div class="plain-facts"><span>Timed holds expire automatically.</span><span>The sample never changes a live stockroom.</span><span>New Pro purchases are temporarily unavailable.</span></div>
           <button class="secondary-button" onclick={startLive}>Open the live desk</button>
         </div>
         <picture><source media="(max-width: 700px)" srcset="/assets/stockroom-watch-640.webp" /><img src="/assets/stockroom-watch-1536.webp" width="1536" height="1024" alt="An orderly stockroom aisle with a small carton group under a warm work light" fetchpriority="high" decoding="async" /></picture>
       </section>
       <section class="landing-section" aria-labelledby="how-it-works"><h2 id="how-it-works">How it works</h2><ol><li><strong>List stock.</strong> Add the SKUs that one location can promise.</li><li><strong>Place a hold.</strong> Staff name the customer, quantity, and expiry.</li><li><strong>Resolve it.</strong> A supervisor converts or releases the hold.</li></ol></section>
       <section class="landing-section" aria-labelledby="limits"><h2 id="limits">What Stock Promise does not do</h2><p>It is not a legal reservation, warehouse system, storefront, or replacement for your system of record.</p><p>Supervisors choose when resolved customer references, notes, and operator names are removed.</p></section>
-      <section class="landing-section" aria-labelledby="pricing"><h2 id="pricing">Optional Pro convenience</h2><p>$39 one-time adds local operator profiles and on-device expiry reminders. Core safety, audit, and export stay free.</p><a class="text-button" href={buyUrl}>View purchase options</a></section>
+      <section class="landing-section" aria-labelledby="pricing"><h2 id="pricing">Optional Pro convenience</h2><p>A verified Pro license enables local operator profiles and on-device expiry reminders. Core holds and CSV export do not require Pro.</p><p class="muted">New Pro purchases are temporarily unavailable.</p></section>
     </main>
   {:else if loading}
     <main id="main" class="loading-state" aria-busy="true">
@@ -610,13 +614,13 @@
           {#if supervisor}
             <section class="settings-section privacy-controls"><div class="section-title"><div><h3>Data retention</h3><p>Remove resolved hold details after {retentionDays} days.</p></div><button class="secondary-button" onclick={() => openModal('privacy')}>Manage data</button></div><p class="muted">Retention removes resolved customer references, notes, and operator names. Erasing this location permanently removes its inventory, holds, sessions, and audit record.</p></section>
           {/if}
-          <section class="pro-section"><div><p class="eyebrow">Optional team convenience</p><h3>{license.unlocked ? 'Stock Promise Pro is active' : 'Add Pro reminders & profiles'}</h3><p>Core holds, supervisor controls, safety checks, audit history, and CSV export always remain available.</p></div>
+          <section class="pro-section"><div><p class="eyebrow">Optional team convenience</p><h3>{license.unlocked ? 'Stock Promise Pro is active' : 'Pro reminders & profiles'}</h3><p>Core holds and CSV export do not require Pro.</p></div>
             {#if license.unlocked}
               <div class="pro-controls"><label for="profile-name">Operator profile name</label><div class="inline-form"><input id="profile-name" bind:value={operatorName} maxlength="80" /><button class="secondary-button" onclick={addProfile}>Save profile</button></div>{#if profiles.length}<div class="chips">{#each profiles as profile}<button onclick={() => operatorName = profile}>{profile}</button>{/each}</div>{/if}<button class="primary-button small" onclick={enableReminders}>{reminders ? 'Reminders enabled' : 'Enable 5-minute reminders'}</button></div>
             {:else}
-              <div class="price-lock"><strong>$39 <span>one-time</span></strong><p>Saved operator profiles and on-device expiry notifications.</p><a class="primary-button" href={buyUrl}>Buy Pro securely</a></div>
+              <div class="price-lock"><p>Saved operator profiles and on-device expiry notifications need a verified Pro license.</p><p class="muted">New Pro purchases are temporarily unavailable. Existing license holders can restore a license below.</p></div>
             {/if}
-            {#if license.notice}<p class="license-notice">{license.notice} <a href={buyUrl}>View purchase options</a></p>{/if}
+            {#if license.notice}<p class="license-notice">{license.notice}</p>{/if}
             <form class="restore-form" onsubmit={(event) => { event.preventDefault(); restoreLicense(event); }}><label for="license">Have a license? Paste it here</label><div class="inline-form"><input id="license" name="license" autocomplete="off" /><button class="secondary-button">Verify license</button></div></form>
           </section>
           <section class="settings-section"><div class="section-title"><div><h3>Audit trail</h3><p>Append-only record, newest first</p></div>{#if supervisor}<button class="icon-button" aria-label="Refresh audit trail" onclick={loadAudit}>↻</button>{/if}</div>
@@ -660,6 +664,6 @@
   {/if}
 
   <footer class="site-footer">
-    <span>Timed shared holds for one location.</span><nav aria-label="Legal"><a href="/privacy" onclick={(event) => { event.preventDefault(); navigate('/privacy'); }}>Privacy</a><a href="/terms" onclick={(event) => { event.preventDefault(); navigate('/terms'); }}>Terms</a></nav><span>Built by Param Factory · build current · AI-assisted image.</span>
+    <span>Timed shared holds for one location.</span><nav aria-label="Legal"><a href="/privacy" onclick={(event) => { event.preventDefault(); navigate('/privacy'); }}>Privacy</a><a href="/terms" onclick={(event) => { event.preventDefault(); navigate('/terms'); }}>Terms</a></nav><span>Built by Param Factory · build {buildId.slice(0, 12)} · AI-assisted image.</span>
   </footer>
 {/if}

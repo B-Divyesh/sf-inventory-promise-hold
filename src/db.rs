@@ -212,8 +212,9 @@ mod tests {
         );
     }
 
+    // @claim:retention-redaction
     #[tokio::test]
-    async fn retention_redacts_resolved_hold_personal_fields_but_keeps_audit_rows() {
+    async fn claim_retention_redaction_removes_personal_fields_but_keeps_audit_rows() {
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
             .connect("sqlite::memory:")

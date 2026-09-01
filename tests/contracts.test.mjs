@@ -11,6 +11,7 @@ const execFile = promisify(execFileCallback);
 test('container uses current stable Rust and declares durable /data', async () => {
   const dockerfile = await readFile(new URL('../Dockerfile', import.meta.url), 'utf8');
   assert.match(dockerfile, /^ARG BUILD_SHA=dev$/m);
+  assert.match(dockerfile, /FROM node:22-alpine AS frontend\nARG BUILD_SHA\nENV VITE_BUILD_SHA=\$BUILD_SHA/);
   assert.match(dockerfile, /^FROM rust:1-slim AS backend$/m);
   assert.doesNotMatch(dockerfile, /^FROM rust:1\.[0-9]+/m);
   assert.match(dockerfile, /ENV FRONTEND_DIR=.* DATABASE_PATH=\/data\/stock-promise\.db BUILD_SHA=\$BUILD_SHA/);
@@ -87,4 +88,15 @@ test('release delegates durable volume provisioning to the factory deployment co
     PERSISTENT_DATA_VERIFY_SCRIPT: verify, RELEASE_CALL_LOG: log, EXPECTED_RELEASE_SHA: head.trim(), ALLOW_DIRTY_RELEASE: '1',
   } });
   assert.equal(await readFile(log, 'utf8'), 'deploy /data inventory-promise-hold /work/repo Dockerfile 8080\nverify inventory-promise-hold\n');
+});
+
+test('recorded unavailable checkout is not offered by the product source', async () => {
+  const [app, legal, license] = await Promise.all([
+    readFile(new URL('../frontend/src/App.svelte', import.meta.url), 'utf8'),
+    readFile(new URL('../frontend/src/Legal.svelte', import.meta.url), 'utf8'),
+    readFile(new URL('../frontend/src/license.ts', import.meta.url), 'utf8'),
+  ]);
+  assert.match(app, /New Pro purchases are temporarily unavailable\./);
+  assert.match(legal, /New Stock Promise Pro purchases are temporarily unavailable\./);
+  assert.doesNotMatch(`${app}\n${legal}\n${license}`, /\/checkout/);
 });

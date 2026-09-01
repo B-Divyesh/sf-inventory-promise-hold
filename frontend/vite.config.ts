@@ -1,8 +1,13 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, '.', '');
+  return {
   root: 'frontend',
+  define: {
+    'import.meta.env.VITE_BUILD_SHA': JSON.stringify(env.BUILD_SHA || env.VITE_BUILD_SHA || 'dev'),
+  },
   plugins: [svelte()],
   build: {
     outDir: '../dist',
@@ -17,4 +22,5 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.ts'],
   },
+  };
 });

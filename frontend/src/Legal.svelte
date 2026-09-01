@@ -1,13 +1,8 @@
 <script lang="ts">
   export let kind: 'privacy' | 'terms';
   export let navigate: (path: string) => void;
+  const buildId = import.meta.env.VITE_BUILD_SHA || 'dev';
 </script>
-
-<svelte:head>
-  <title>{kind === 'privacy' ? 'Privacy' : 'Terms'} — Stock Promise</title>
-  <meta name="description" content={kind === 'privacy' ? 'How the hosted Stock Promise service stores and removes operational data.' : 'Terms for using Stock Promise to coordinate temporary inventory holds.'} />
-  <link rel="canonical" href={`https://inventory-promise-hold.sociobot.in/${kind}`} />
-</svelte:head>
 
 <a class="skip-link" href="#legal-main">Skip to content</a>
 <header class="legal-header">
@@ -25,7 +20,7 @@
     <h2>What is stored</h2>
     <p>Inventory records, temporary holds, outcomes, and an append-only audit trail are stored so the shared ledger works. Sociobot sign-in tokens stay in the current browser session. Operator preferences, an optional Pro license, and reminder preferences stay in this browser.</p>
     <h2>What is sent elsewhere</h2>
-    <p>There is no advertising or behavioral analytics. Sign-in uses Sociobot CIAM. If you buy or verify a Pro license, the license token is sent to Sociobot’s billing API. Sociobot/Dodo operates checkout as merchant of record.</p>
+    <p>There is no advertising or behavioral analytics. Sign-in uses Sociobot CIAM. When an existing Pro license is verified, its token is sent to Sociobot’s billing API. New Pro purchases are temporarily unavailable.</p>
     <h2>Retention and control</h2>
     <p>A supervisor can set a 30–730 day period before resolved customer references, hold notes, and operator names are removed. The append-only audit ledger does not include those values for new holds. A supervisor can also permanently erase the whole location, including inventory, holds, sessions, and its audit record. Clearing browser data removes browser-only preferences and license tokens, but does not erase shared records.</p>
     <h2>Contact</h2>
@@ -39,10 +34,10 @@
     <h2>Service and data</h2>
     <p>The service is provided “as is,” without a guarantee of uninterrupted availability. Do not enter sensitive personal, payment, health, or authentication data in customer names or order notes.</p>
     <h2>Pro license</h2>
-    <p>Stock Promise Pro is a $39 one-time purchase for the features described at checkout. Sociobot/Dodo is the merchant of record and handles payment and refunds. A refund, expiry, or revocation disables the Pro convenience features; core hold safety and CSV export remain available.</p>
+    <p>New Stock Promise Pro purchases are temporarily unavailable. An existing valid Pro license enables saved operator profiles and on-device expiry reminders. Core holds and CSV export do not require Pro.</p>
     <h2>Fair use</h2>
     <p>You may use the service for lawful inventory coordination. Do not attempt to disrupt the service, bypass access controls, or use it to misrepresent stock availability to customers.</p>
   {/if}
   <button class="text-button" onclick={() => navigate('/')}>Return home</button>
 </main>
-<footer class="site-footer legal-footer"><span>Timed shared holds for one location.</span><nav aria-label="Legal"><a href="/privacy" onclick={(event) => { event.preventDefault(); navigate('/privacy'); }}>Privacy</a><a href="/terms" onclick={(event) => { event.preventDefault(); navigate('/terms'); }}>Terms</a></nav><span>Built by Param Factory · build current</span></footer>
+<footer class="site-footer legal-footer"><span>Timed shared holds for one location.</span><nav aria-label="Legal"><a href="/privacy" onclick={(event) => { event.preventDefault(); navigate('/privacy'); }}>Privacy</a><a href="/terms" onclick={(event) => { event.preventDefault(); navigate('/terms'); }}>Terms</a></nav><span>Built by Param Factory · build {buildId.slice(0, 12)}</span></footer>

@@ -47,8 +47,9 @@ img { display: block; max-width: 100%; }
 .app-header { position: relative; z-index: 20; display: flex; min-height: 68px; align-items: center; justify-content: space-between; gap: 16px; padding: 10px max(20px, env(safe-area-inset-right)) 10px max(20px, env(safe-area-inset-left)); border-bottom: 1px solid var(--border); background: rgba(7, 19, 24, .96); }
 .wordmark, .legal-header a { display: inline-flex; min-height: 44px; align-items: center; gap: 10px; color: var(--text); font-family: Georgia, serif; font-size: 1.18rem; text-decoration: none; }
 .header-status { display: flex; align-items: center; gap: 16px; }
+.header-action-compact { display: none; }
 .top-nav { display: flex; gap: 16px; margin-left: auto; }
-.top-nav a { min-height: 44px; display: inline-flex; align-items: center; color: var(--fog); text-decoration: underline; text-underline-offset: 3px; }
+.top-nav a { display: inline-flex; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; padding: 0 6px; color: var(--fog); text-decoration: underline; text-underline-offset: 3px; }
 .connection { display: flex; align-items: center; gap: 7px; color: var(--mint); font-size: .83rem; font-weight: 700; }
 .connection i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 4px rgba(116,201,160,.12); }
 .connection.offline { color: var(--coral); }
@@ -174,7 +175,7 @@ td small { display: block; margin-top: 3px; color: var(--muted); }
 .inline-form { display: flex; gap: 8px; }
 .inline-form input { flex: 1; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
-.chips button { min-height: 36px; padding: 5px 10px; border: 1px solid var(--steel); border-radius: 18px; background: transparent; cursor: pointer; }
+.chips button { min-height: 44px; padding: 5px 10px; border: 1px solid var(--steel); border-radius: 18px; background: transparent; cursor: pointer; }
 .audit-list { border-top: 1px solid var(--border); }
 .audit-list li { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .audit-list strong { font-size: .9rem; text-transform: capitalize; }
@@ -231,6 +232,7 @@ code { padding: 2px 5px; color: var(--amber-light); background: #061115; }
 .legal-copy h1 { margin-bottom: 32px; font-size: clamp(2.5rem, 6vw, 4.5rem); }
 .legal-copy h2 { margin-top: 40px; font-size: 1.5rem; }
 .legal-copy p { color: #c6d2d0; line-height: 1.7; }
+.legal-copy p a { display: inline-flex; min-height: 44px; align-items: center; }
 .legal-footer { display: block; text-align: center; }
 
 @media (max-width: 960px) {
@@ -243,11 +245,16 @@ code { padding: 2px 5px; color: var(--amber-light); background: #061115; }
 }
 
 @media (max-width: 720px) {
-  .app-header { min-height: 64px; }
+  .app-header { min-height: 64px; gap: 8px; }
+  .wordmark { gap: 6px; }
   .wordmark span { font-size: 1rem; }
   .connection { display: none; }
-  .top-nav { gap: 8px; }
+  .top-nav { gap: 0; }
   .top-nav a { font-size: .8rem; }
+  .header-status { gap: 4px; }
+  .header-action { width: 44px; padding: 0; }
+  .header-action-full { display: none; }
+  .header-action-compact { display: inline; font-size: .78rem; }
   .demo-banner { align-items: flex-start; flex-wrap: wrap; justify-content: flex-start; gap: 4px 12px; }
   .landing-page { padding: 0 16px 56px; }
   .landing-hero { display: flex; flex-direction: column-reverse; margin: 0 -16px; }
@@ -267,8 +274,9 @@ code { padding: 2px 5px; color: var(--amber-light); background: #061115; }
   .rail-metrics dt { font-size: .68rem; }
   .rail-metrics dd { font-size: 1.5rem; }
   .workspace { padding: 0 16px max(64px, env(safe-area-inset-bottom)); }
-  .section-nav { position: sticky; top: 0; z-index: 10; margin: 0 -16px 30px; overflow-x: auto; background: rgba(7,19,24,.97); }
-  .section-nav button { flex: 1 0 auto; padding: 0 14px; font-size: .84rem; }
+  .section-nav { position: sticky; top: 0; z-index: 10; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; max-width: 100%; margin: 0 -16px 30px; overflow: hidden; background: rgba(7,19,24,.97); }
+  .section-nav button { min-width: 0; padding: 8px 4px; font-size: .84rem; line-height: 1.2; overflow-wrap: anywhere; }
+  .section-nav span { margin-left: 2px; }
   .desk-head, .panel-head { display: block; }
   .search { display: block; margin-top: 18px; }
   .search input { width: 100%; }

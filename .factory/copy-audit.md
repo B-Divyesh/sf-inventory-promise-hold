@@ -9,8 +9,8 @@ Audited: 2026-08-30. The landing page uses the terms **stock**, **hold**,
 | For distributors and resellers taking orders in parallel, Stock Promise shows a timed team hold before stock is promised. | 17 | Pass |
 | See a working stockroom immediately. | 5 | Pass |
 | Timed holds expire automatically. | 4 | Pass |
-| Live data stays on this service. | 6 | Pass |
-| Core holds and CSV export are free. | 7 | Pass |
+| The sample never changes a live stockroom. | 7 | Pass |
+| New Pro purchases are temporarily unavailable. | 6 | Pass |
 | List stock. | 2 | Pass |
 | Add the SKUs that one location can promise. | 9 | Pass |
 | Place a hold. | 3 | Pass |
@@ -19,8 +19,9 @@ Audited: 2026-08-30. The landing page uses the terms **stock**, **hold**,
 | A supervisor converts or releases the hold. | 7 | Pass |
 | It is not a legal reservation, warehouse system, storefront, or replacement for your system of record. | 16 | Pass |
 | Supervisors choose when resolved customer references, notes, and operator names are removed. | 11 | Pass |
-| $39 one-time adds local operator profiles and on-device expiry reminders. | 9 | Pass |
-| Core safety, audit, and export stay free. | 7 | Pass |
+| A verified Pro license enables local operator profiles and on-device expiry reminders. | 12 | Pass |
+| Core holds and CSV export do not require Pro. | 9 | Pass |
+| New Pro purchases are temporarily unavailable. | 6 | Pass |
 
 No landing sentence exceeds 22 words or uses a banned plain-words term.
 

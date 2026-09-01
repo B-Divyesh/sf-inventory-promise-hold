@@ -1177,8 +1177,9 @@ mod tests {
         headers
     }
 
+    // @claim:contested-stock-protection
     #[tokio::test]
-    async fn hold_creation_is_atomic_against_available_stock() {
+    async fn claim_contested_stock_protection_allows_only_one_competing_hold() {
         let directory = tempfile::tempdir().unwrap();
         let options = SqliteConnectOptions::new()
             .filename(directory.path().join("race.db"))
@@ -1235,8 +1236,9 @@ mod tests {
         assert_eq!(count, 1);
     }
 
+    // @claim:append-only-audit
     #[tokio::test]
-    async fn conversion_reduces_stock_and_audits_outcome() {
+    async fn claim_append_only_audit_keeps_hold_outcomes_immutable() {
         let state = state().await;
         sqlx::query("INSERT INTO inventory(sku,name,on_hand,created_at,updated_at) VALUES('ONE','Part',5,0,0)").execute(&state.pool).await.unwrap();
         let hold = HoldInput {
@@ -1273,6 +1275,14 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(event, "hold.converted");
+        let created_details: String = sqlx::query_scalar(
+            "SELECT details_json FROM audit_log WHERE event = 'hold.created' ORDER BY id ASC LIMIT 1",
+        )
+        .fetch_one(&state.pool)
+        .await
+        .unwrap();
+        assert!(!created_details.contains("Buyer"));
+        assert!(!created_details.contains("Lee"));
         let deletion = sqlx::query("DELETE FROM audit_log")
             .execute(&state.pool)
             .await;
@@ -1366,6 +1376,7 @@ mod tests {
         assert_eq!(authenticated.0.inventory.len(), 1);
     }
 
+    // @claim:role-boundary
     #[tokio::test]
     async fn claim_role_boundary_staff_can_hold_but_not_change_or_resolve_stock() {
         let state = state().await;
@@ -1411,6 +1422,7 @@ mod tests {
         assert!(matches!(resolved, Err(ApiError::Unauthorized(_))));
     }
 
+    // @claim:rate-limit
     #[tokio::test]
     async fn claim_rate_limit_returns_retry_after_for_excessive_status_requests() {
         let state = state().await;
@@ -1441,5 +1453,110 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
         assert!(response.headers().get(header::RETRY_AFTER).is_some());
+    }
+
+    // @claim:automatic-expiry
+    #[tokio::test]
+    async fn claim_automatic_expiry_releases_stock_and_records_an_outcome() {
+        let state = state().await;
+        let now = db::now();
+        sqlx::query("INSERT INTO inventory(sku,name,on_hand,created_at,updated_at) VALUES('DUE-1','Due part',5,?,?)")
+            .bind(now)
+            .bind(now)
+            .execute(&state.pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO holds(id,inventory_id,quantity,customer,order_note,operator_name,status,created_at,expires_at) VALUES('due-hold',1,2,'Due customer','','Mina','active',?,?)")
+            .bind(now - 600)
+            .bind(now - 1)
+            .execute(&state.pool)
+            .await
+            .unwrap();
+
+        assert_eq!(db::expire_due(&state.pool).await.unwrap(), 1);
+        let Json(bootstrapped) = bootstrap(State(state.clone()), auth_headers(&state).await)
+            .await
+            .unwrap();
+        assert_eq!(bootstrapped.inventory[0].available, 5);
+        assert!(bootstrapped.active_holds.is_empty());
+        assert_eq!(bootstrapped.recent_outcomes[0].status, "expired");
+        assert_eq!(
+            bootstrapped.recent_outcomes[0].resolved_by.as_deref(),
+            Some("Clock")
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT event FROM audit_log WHERE entity_id='due-hold'"
+            )
+            .fetch_one(&state.pool)
+            .await
+            .unwrap(),
+            "hold.expired"
+        );
+    }
+
+    // @claim:location-erasure
+    #[tokio::test]
+    async fn claim_location_erasure_removes_operational_data_and_restores_audit_protection() {
+        let state = state().await;
+        let now = db::now();
+        sqlx::query("INSERT INTO settings(singleton,location_name,supervisor_pin_hash,created_at) VALUES(1,'Erase test','hash',?)")
+            .bind(now)
+            .execute(&state.pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO inventory(sku,name,on_hand,created_at,updated_at) VALUES('ERASE-1','Erase part',3,?,?)")
+            .bind(now)
+            .bind(now)
+            .execute(&state.pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO holds(id,inventory_id,quantity,customer,order_note,operator_name,status,created_at,expires_at) VALUES('erase-hold',1,1,'Customer','','Mina','active',?,?)")
+            .bind(now)
+            .bind(now + 300)
+            .execute(&state.pool)
+            .await
+            .unwrap();
+        audit_event(
+            &state.pool,
+            "hold.created",
+            "hold",
+            "erase-hold",
+            "Mina",
+            json!({"quantity": 1}),
+        )
+        .await
+        .unwrap();
+
+        let response = delete_location(
+            State(state.clone()),
+            auth_headers(&state).await,
+            Json(DeleteLocationInput {
+                confirmation: "DELETE".into(),
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(response, StatusCode::NO_CONTENT);
+        for table in ["settings", "inventory", "holds", "sessions", "audit_log"] {
+            let query = format!("SELECT COUNT(*) FROM {table}");
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>(&query)
+                    .fetch_one(&state.pool)
+                    .await
+                    .unwrap(),
+                0,
+                "{table} must be erased"
+            );
+        }
+        assert!(status(State(state.clone())).await.unwrap().0.setup_required);
+
+        audit_event(&state.pool, "test.event", "test", "1", "Tester", json!({}))
+            .await
+            .unwrap();
+        assert!(sqlx::query("DELETE FROM audit_log")
+            .execute(&state.pool)
+            .await
+            .is_err());
     }
 }

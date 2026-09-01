@@ -76,6 +76,27 @@ test('legal pages stay semantic and reachable', async ({ page }) => {
   await expect(page).toHaveURL('/');
 });
 
+test('public routes keep one route-specific canonical and description', async ({ page }) => {
+  const routes = [
+    ['/demo', 'Demo — Stock Promise', 'https://inventory-promise-hold.sociobot.in/demo'],
+    ['/privacy', 'Privacy — Stock Promise', 'https://inventory-promise-hold.sociobot.in/privacy'],
+    ['/terms', 'Terms — Stock Promise', 'https://inventory-promise-hold.sociobot.in/terms'],
+  ] as const;
+  for (const [route, title, canonical] of routes) {
+    await page.goto(route, { waitUntil: 'networkidle' });
+    await expect(page).toHaveTitle(title);
+    await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
+    await expect(page.locator('meta[name="description"]')).toHaveCount(1);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', canonical);
+    await expect(page.locator('meta[name="description"]')).not.toHaveAttribute('content', 'Create timed, shared inventory holds so scarce stock is not promised twice.');
+  }
+  await page.goto('/does-not-exist');
+  await expect(page).toHaveTitle('Page not found — Stock Promise');
+  await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://inventory-promise-hold.sociobot.in/404');
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', 'Return to Stock Promise or try the sample stockroom.');
+});
+
 test('direct routes, cache policy, metadata, and security headers are production-safe', async ({ request }) => {
   for (const route of ['/privacy', '/terms', '/demo']) {
     const response = await request.head(route);
@@ -146,6 +167,40 @@ test('390px reduced-motion shell updates and explains an offline reload', async 
   await context.close();
 });
 
+test('390px targets are at least 44px and 200% text does not widen the demo', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, bypassCSP: true });
+  const page = await context.newPage();
+  await page.goto('/demo', { waitUntil: 'networkidle' });
+  const undersized = await page.locator('a, button, input, select, textarea').evaluateAll((elements) => elements
+    .filter((element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+    })
+    .map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { label: (element.textContent || element.getAttribute('aria-label') || element.tagName).trim(), width: rect.width, height: rect.height };
+    })
+    .filter((target) => target.width < 44 || target.height < 44),
+  );
+  expect(undersized).toEqual([]);
+
+  await page.evaluate(() => { document.documentElement.style.fontSize = '32px'; });
+  const reflow = await page.evaluate(() => {
+    const width = document.documentElement.clientWidth;
+    return {
+      viewport: width,
+      document: document.documentElement.scrollWidth,
+      offenders: [...document.querySelectorAll<HTMLElement>('*')]
+        .map((element) => ({ tag: element.tagName, className: element.className, right: element.getBoundingClientRect().right }))
+        .filter((element) => element.right > width + 1)
+        .slice(0, 8),
+    };
+  });
+  expect(reflow.document, JSON.stringify(reflow.offenders)).toBeLessThanOrEqual(reflow.viewport);
+  await context.close();
+});
+
 test('@claim:demo-isolated sample changes never call a live write API', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
@@ -190,5 +245,96 @@ test('@claim:offline-demo sample opens offline after first visit', async ({ brow
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.getByText('Demo — sample data, nothing is saved.')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Promise desk' })).toBeVisible();
+  await context.close();
+});
+
+test('@claim:pro-profiles-reminders a verified license saves profiles and sends an on-device expiry reminder', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await context.addInitScript(() => {
+    localStorage.setItem('sb_license:inventory-promise-hold', 'verified-test-license');
+    localStorage.setItem('sb_license:inventory-promise-hold:verdict', JSON.stringify({ valid: true, checked: Date.now() }));
+    class TestNotification {
+      static permission = 'granted';
+      static requestPermission = async () => 'granted';
+      constructor(title: string, options?: NotificationOptions) {
+        (window as Window & { __stockPromiseNotifications?: Array<{ title: string; body?: string }> }).__stockPromiseNotifications ??= [];
+        (window as Window & { __stockPromiseNotifications: Array<{ title: string; body?: string }> }).__stockPromiseNotifications.push({ title, body: options?.body });
+      }
+    }
+    Object.defineProperty(window, 'Notification', { configurable: true, value: TestNotification });
+  });
+  const page = await context.newPage();
+  await page.goto('/demo', { waitUntil: 'networkidle' });
+  await page.evaluate(() => {
+    const key = 'demo:stock-promise:state';
+    const now = Math.floor(Date.now() / 1000);
+    const data = {
+      setup_required: false, location_name: 'Harbor Parts — sample', server_time: now, role: 'supervisor',
+      inventory: [{ id: 1, sku: 'VALVE-24', name: 'Brass isolation valve', on_hand: 12, held: 3, available: 9 }],
+      active_holds: [{ id: 'demo-due-soon', inventory_id: 1, sku: 'VALVE-24', item_name: 'Brass isolation valve', quantity: 3, customer: 'Northline Plumbing order 418', order_note: 'Counter pickup', operator_name: 'Mina', status: 'active', created_at: now - 300, expires_at: now + 120, resolved_at: null, resolved_by: null }],
+      recent_outcomes: [],
+    };
+    sessionStorage.setItem(key, JSON.stringify(data));
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Stock & settings' }).click();
+  await expect(page.getByRole('heading', { name: 'Stock Promise Pro is active' })).toBeVisible();
+  await page.getByLabel('Operator profile name').fill('Mina');
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByRole('button', { name: 'Mina' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Enable 5-minute reminders' }).click();
+  await expect(page.getByRole('button', { name: 'Reminders enabled' })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as Window & { __stockPromiseNotifications?: unknown[] }).__stockPromiseNotifications?.length || 0)).toBe(1);
+  await page.getByRole('button', { name: 'Live desk' }).click();
+  await page.getByRole('button', { name: 'Create hold' }).first().click();
+  await page.getByRole('button', { name: 'Mina' }).click();
+  await expect(page.getByLabel('Your name')).toHaveValue('Mina');
+  await context.close();
+});
+
+test('@claim:pro-license-restore verifies a pasted existing license without leaving the product', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  const verificationRequests: string[] = [];
+  await page.route('https://api.sociobot.in/api/v1/products/inventory-promise-hold/verify?license=restored-fixture', async (route) => {
+    verificationRequests.push(route.request().url());
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ valid: true, reason: 'ok' }) });
+  });
+  await page.goto('/demo', { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Stock & settings' }).click();
+  await page.getByLabel('Have a license? Paste it here').fill('restored-fixture');
+  await page.getByRole('button', { name: 'Verify license' }).click();
+  await expect(page.getByRole('heading', { name: 'Stock Promise Pro is active' })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('sb_license:inventory-promise-hold'))).toBe('restored-fixture');
+  expect(verificationRequests).toEqual(['https://api.sociobot.in/api/v1/products/inventory-promise-hold/verify?license=restored-fixture']);
+  await context.close();
+});
+
+test('@claim:pro-checkout-status does not offer the recorded unavailable checkout route', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await expect(page.locator('.plain-facts').getByText('New Pro purchases are temporarily unavailable.')).toBeVisible();
+  expect(await page.locator('a[href*="/checkout"]').count()).toBe(0);
+  await page.goto('/demo', { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Stock & settings' }).click();
+  await expect(page.getByText('Existing license holders can restore a license below.')).toBeVisible();
+  expect(await page.locator('a[href*="/checkout"]').count()).toBe(0);
+});
+
+test('@claim:core-features-no-pro creates a hold and exports CSV without a license', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  await page.goto('/demo', { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Create hold' }).first().click();
+  await page.getByLabel('Quantity').fill('1');
+  await page.getByLabel('Customer or order reference').fill('No Pro counter order');
+  await page.getByLabel('Your name').fill('Free staff');
+  await page.getByRole('button', { name: 'Hold VALVE-24' }).click();
+  await expect(page.getByText('Sample hold created for No Pro counter order.')).toBeVisible();
+  await page.getByRole('button', { name: 'Outcomes' }).click();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export CSV' }).click();
+  expect((await download).suggestedFilename()).toBe('stock-promise-holds.csv');
+  await page.getByRole('button', { name: 'Stock & settings' }).click();
+  await expect(page.getByText('New Pro purchases are temporarily unavailable.')).toBeVisible();
   await context.close();
 });

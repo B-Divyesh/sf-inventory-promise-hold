@@ -1,6 +1,8 @@
 ARG BUILD_SHA=dev
 
 FROM node:22-alpine AS frontend
+ARG BUILD_SHA
+ENV VITE_BUILD_SHA=$BUILD_SHA
 WORKDIR /build
 COPY package.json package-lock.json ./
 COPY frontend ./frontend

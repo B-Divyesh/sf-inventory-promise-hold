@@ -37,6 +37,18 @@ and [/terms](https://inventory-promise-hold.sociobot.in/terms).
 A hold is an internal coordination signal. It is not a legal reservation,
 sale, warehouse allocation, or replacement for a system of record.
 
+## Hold safety and optional Pro features
+
+Timed holds expire automatically. If two staff members try to hold the same
+last units, only the first accepted hold protects stock. The audit record is
+append-only. A supervisor can permanently erase the whole location when it is
+no longer needed.
+
+A verified existing Pro license enables saved operator profiles and optional
+on-device expiry reminders. Core holds and CSV export do not require Pro. New
+Pro purchases are temporarily unavailable; the settings screen can still
+restore an existing license.
+
 ## Run locally
 
 Requirements: Node.js 22+, npm, and current stable Rust.

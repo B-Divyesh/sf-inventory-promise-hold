@@ -1,5 +1,4 @@
 export const productSlug = 'inventory-promise-hold';
-export const buyUrl = `https://api.sociobot.in/api/v1/products/${productSlug}/checkout`;
 const key = `sb_license:${productSlug}`;
 const verdictKey = `${key}:verdict`;
 
@@ -34,4 +33,3 @@ export async function checkLicense(force = false): Promise<LicenseState> {
     return { unlocked: cached?.valid ?? false, notice: 'License check will retry when you are online.', token };
   }
 }
-
