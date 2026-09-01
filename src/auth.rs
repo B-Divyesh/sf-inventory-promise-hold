@@ -221,8 +221,9 @@ impl AuthService {
 mod tests {
     use super::*;
 
+    // @claim:hosted-access
     #[test]
-    fn production_defaults_use_the_shared_ciam_tenant() {
+    fn claim_hosted_access_uses_sociobot_ciam_by_default() {
         let service = AuthService::from_env();
         assert!(service
             .discovery_url

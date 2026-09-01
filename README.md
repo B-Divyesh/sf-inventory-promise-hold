@@ -11,8 +11,9 @@ Live product: <https://inventory-promise-hold.sociobot.in>
 
 Open <https://inventory-promise-hold.sociobot.in/demo> or choose **Try it with
 sample data**. The demo starts with three realistic SKUs and a live hold. It is
-stored only in `demo:stock-promise:state` in the current browser session; it
-never writes to a live stockroom. Reset it from the banner at any time.
+stored only under `demo:stock-promise:*` in the current browser session. It
+never reads or writes live workspace or license state. Reset clears every demo
+key and restores the shipped sample.
 
 ## Access and data
 

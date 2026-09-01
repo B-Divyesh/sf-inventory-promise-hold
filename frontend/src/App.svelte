@@ -23,23 +23,26 @@
   let query = '';
   let modal: Modal = null;
   let dialog: HTMLDialogElement;
+  let modalOpener: HTMLElement | null = null;
   let selectedItem: InventoryItem | null = null;
   let editingItem: InventoryItem | null = null;
-  let supervisor = Boolean(getSession());
+  let supervisor = demo || (!demo && Boolean(getSession()));
   let busy = '';
   let formError = '';
   let announcement = '';
   let now = Date.now();
   let license: LicenseState = { unlocked: false, notice: '', token: null };
-  let operatorName = localStorage.getItem('stock-promise:operator') || '';
-  let supervisorName = localStorage.getItem('stock-promise:supervisor-name') || '';
-  let profiles: string[] = JSON.parse(localStorage.getItem('stock-promise:profiles') || '[]');
-  let reminders = localStorage.getItem('stock-promise:reminders') === 'true';
+  let operatorName = '';
+  let supervisorName = '';
+  let profiles: string[] = [];
+  let reminders = false;
   let auditEntries: Array<Record<string, any>> = [];
   let importReport = '';
   let retentionDays = 90;
   const notified = new Set<string>();
   const buildId = import.meta.env.VITE_BUILD_SHA || 'dev';
+  const demoPrefix = 'demo:stock-promise:';
+  const demoKey = `${demoPrefix}state`;
 
   $: filteredInventory = (data?.inventory || []).filter((item) =>
     `${item.sku} ${item.name}`.toLowerCase().includes(query.trim().toLowerCase())
@@ -50,8 +53,9 @@
 
   onMount(() => {
     applyRouteMetadata(path);
-    captureLicense();
-    checkLicense().then((value) => license = value);
+    hydrateBrowserPreferences();
+    captureLicense(demo);
+    checkLicense(false, demo).then((value) => license = value);
     if (demo) load();
     else if (path === '/auth/callback') {
       path = '/'; landing = false; prepareLive();
@@ -70,14 +74,7 @@
     const handleOffline = () => online = false;
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    const handlePopState = () => {
-      path = window.location.pathname;
-      demo = path === '/demo';
-      landing = path === '/';
-      applyRouteMetadata(path);
-      if (demo) load();
-      else if (landing) { data = null; accessRequired = false; loading = false; }
-    };
+    const handlePopState = () => changeRoute(window.location.pathname, true);
     window.addEventListener('popstate', handlePopState);
     return () => {
       clearInterval(clock);
@@ -90,14 +87,28 @@
 
   function navigate(next: string) {
     history.pushState({}, '', next);
+    changeRoute(next, false);
+  }
+
+  function changeRoute(next: string, fromHistory: boolean) {
+    const wasDemo = demo;
     path = next;
     demo = next === '/demo';
     landing = next === '/';
+    if (wasDemo && !demo) clearDemoStorage();
+    if (wasDemo !== demo) {
+      hydrateBrowserPreferences();
+      license = { unlocked: false, notice: '', token: null };
+      checkLicense(false, demo).then((value) => {
+        if (demo === (next === '/demo')) license = value;
+      });
+    }
     applyRouteMetadata(next);
     if (demo) load();
     if (landing) { data = null; accessRequired = false; loading = false; }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    tick().then(() => focusPageHeading());
+    announcement = '';
+    if (!fromHistory) window.scrollTo({ top: 0, behavior: 'smooth' });
+    tick().then(focusPageHeading);
   }
 
   function focusPageHeading() {
@@ -105,7 +116,8 @@
     if (!heading) return;
     heading.tabIndex = -1;
     heading.focus({ preventScroll: true });
-    announcement = `Opened ${heading.textContent?.trim() || 'page'}.`;
+    const name = heading.textContent?.trim() || 'page';
+    announcement = `Opened ${name}${/[.!?]$/.test(name) ? '' : '.'}`;
   }
 
   async function prepareLive() {
@@ -124,7 +136,43 @@
     prepareLive();
   }
 
-  const demoKey = 'demo:stock-promise:state';
+  function preferenceStorage(): Storage {
+    return demo ? sessionStorage : localStorage;
+  }
+
+  function preferenceKey(name: string): string {
+    return demo ? `${demoPrefix}${name}` : `stock-promise:${name}`;
+  }
+
+  function readProfiles(): string[] {
+    try {
+      const value = JSON.parse(preferenceStorage().getItem(preferenceKey('profiles')) || '[]');
+      return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function hydrateBrowserPreferences() {
+    const storage = preferenceStorage();
+    operatorName = storage.getItem(preferenceKey('operator')) || '';
+    supervisorName = storage.getItem(preferenceKey('supervisor-name')) || '';
+    profiles = readProfiles();
+    reminders = storage.getItem(preferenceKey('reminders')) === 'true';
+    notified.clear();
+  }
+
+  function savePreference(name: string, value: string) {
+    preferenceStorage().setItem(preferenceKey(name), value);
+  }
+
+  function clearDemoStorage() {
+    for (let index = sessionStorage.length - 1; index >= 0; index--) {
+      const key = sessionStorage.key(index);
+      if (key?.startsWith(demoPrefix)) sessionStorage.removeItem(key);
+    }
+  }
+
   function sampleData(): Bootstrap {
     const nowSeconds = Math.floor(Date.now() / 1000);
     return {
@@ -140,8 +188,11 @@
   }
 
   function resetDemo() {
-    sessionStorage.removeItem(demoKey);
+    clearDemoStorage();
     data = sampleData(); supervisor = true; auditEntries = [];
+    operatorName = ''; supervisorName = ''; profiles = []; reminders = false;
+    license = { unlocked: false, notice: '', token: null };
+    retentionDays = 90; notified.clear();
     announcement = 'Demo reset to the shipped sample data.';
   }
 
@@ -184,6 +235,7 @@
   }
 
   async function openModal(kind: Exclude<Modal, null>, item: InventoryItem | null = null) {
+    modalOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     modal = kind;
     selectedItem = kind === 'hold' ? item : null;
     editingItem = kind === 'inventory' ? item : null;
@@ -197,10 +249,17 @@
 
   function closeModal() {
     dialog?.close();
+  }
+
+  async function handleDialogClose() {
     modal = null;
     selectedItem = null;
     editingItem = null;
     formError = '';
+    const opener = modalOpener;
+    modalOpener = null;
+    await tick();
+    if (opener?.isConnected) opener.focus();
   }
 
   async function setup(event: SubmitEvent) {
@@ -274,12 +333,12 @@
       const hold: Hold = { id: `demo-${crypto.randomUUID()}`, inventory_id: item.id, sku: item.sku, item_name: item.name, quantity: payload.quantity, customer: String(values.customer), order_note: String(values.order_note || ''), operator_name: String(values.operator_name), status: 'active', created_at: createdAt, expires_at: createdAt + payload.duration_minutes * 60, resolved_at: null, resolved_by: null };
       data.inventory = data.inventory.map((candidate) => candidate.id === item.id ? { ...candidate, held: candidate.held + hold.quantity, available: candidate.available - hold.quantity } : candidate);
       data.active_holds = [...data.active_holds, hold];
-      operatorName = hold.operator_name; localStorage.setItem('stock-promise:operator', operatorName);
+      operatorName = hold.operator_name; savePreference('operator', operatorName);
       persistDemo(); closeModal(); announcement = `Sample hold created for ${hold.customer}. ${hold.quantity} units are now protected.`; busy = ''; return;
     }
     try {
       await request('/api/holds', { method: 'POST', body: JSON.stringify(payload) }, 'required');
-      operatorName = String(values.operator_name); localStorage.setItem('stock-promise:operator', operatorName);
+      operatorName = String(values.operator_name); savePreference('operator', operatorName);
       closeModal(); announcement = `Hold created for ${values.customer}. ${payload.quantity} units are now protected.`;
       await load(true);
     } catch (error) { formError = message(error); await load(true); }
@@ -304,7 +363,7 @@
     }
     try {
       await request(`/api/holds/${hold.id}/resolve`, { method: 'POST', body: JSON.stringify({ action, actor: supervisorName || 'Supervisor' }) }, 'required');
-      if (supervisorName) localStorage.setItem('stock-promise:supervisor-name', supervisorName);
+      if (supervisorName) savePreference('supervisor-name', supervisorName);
       announcement = action === 'convert' ? `Hold for ${hold.customer} converted. Stock count reduced.` : `Hold for ${hold.customer} released. Stock is available again.`;
       await load(true);
     } catch (error) { announcement = message(error); supervisor = Boolean(getSession()); await load(true); }
@@ -347,12 +406,23 @@
       for (const [offset, line] of lines.slice(1).entries()) {
         const cells = line.split(',').map((value) => value.trim().replace(/^"|"$/g, ''));
         try {
-          await request('/api/inventory', { method: 'POST', body: JSON.stringify({ sku: cells[indexes[0]], name: cells[indexes[1]], on_hand: Number(cells[indexes[2]]) }) }, 'required');
+          const sku = cells[indexes[0]].toUpperCase();
+          const name = cells[indexes[1]];
+          const onHand = Number(cells[indexes[2]]);
+          if (!sku || !name || !Number.isInteger(onHand) || onHand < 0) throw new Error('Enter a SKU, item name, and a non-negative whole stock count.');
+          if (demo && data) {
+            if (data.inventory.some((item) => item.sku === sku)) throw new Error('That SKU is already in the sample stockroom.');
+            const id = Math.max(0, ...data.inventory.map((item) => item.id)) + 1;
+            data.inventory = [...data.inventory, { id, sku, name, on_hand: onHand, held: 0, available: onHand }];
+          } else {
+            await request('/api/inventory', { method: 'POST', body: JSON.stringify({ sku, name, on_hand: onHand }) }, 'required');
+          }
           imported++;
         } catch (error) { failures.push(`Row ${offset + 2}: ${message(error)}`); }
       }
+      if (demo) persistDemo();
       importReport = `${imported} item${imported === 1 ? '' : 's'} imported.${failures.length ? ` ${failures.length} skipped: ${failures.slice(0, 3).join(' ')}` : ''}`;
-      await load(true);
+      if (!demo) await load(true);
     } catch (error) { formError = message(error); }
     finally { busy = ''; }
   }
@@ -360,8 +430,8 @@
   async function restoreLicense(event: SubmitEvent) {
     const value = String(new FormData(event.currentTarget as HTMLFormElement).get('license') || '');
     if (!value.trim()) return;
-    storeLicense(value); license = { unlocked: true, notice: 'Checking license…', token: value };
-    license = await checkLicense(true);
+    storeLicense(value, demo); license = { unlocked: true, notice: 'Checking license…', token: value };
+    license = await checkLicense(true, demo);
     announcement = license.unlocked ? 'Stock Promise Pro unlocked.' : license.notice;
   }
 
@@ -369,14 +439,14 @@
     const value = operatorName.trim();
     if (!value || profiles.includes(value)) return;
     profiles = [...profiles, value].slice(-8);
-    localStorage.setItem('stock-promise:profiles', JSON.stringify(profiles));
+    savePreference('profiles', JSON.stringify(profiles));
   }
 
   async function enableReminders() {
     if (!license.unlocked) return;
     if (!('Notification' in window)) { announcement = 'This browser does not support notifications.'; return; }
     const permission = await Notification.requestPermission();
-    reminders = permission === 'granted'; localStorage.setItem('stock-promise:reminders', String(reminders));
+    reminders = permission === 'granted'; savePreference('reminders', String(reminders));
     if (reminders) sendReminders();
     announcement = reminders ? 'Five-minute expiry reminders enabled on this device.' : 'Notification permission was not granted.';
   }
@@ -393,7 +463,7 @@
   }
 
   async function loadAudit() {
-    if (!supervisor) return;
+    if (!supervisor || demo) return;
     try { auditEntries = (await request<{ entries: Array<Record<string, any>> }>('/api/audit', {}, 'required')).entries; }
     catch (error) { announcement = message(error); supervisor = Boolean(getSession()); }
   }
@@ -432,6 +502,8 @@
   function message(error: unknown): string { return error instanceof Error ? error.message : 'Something went wrong. Try again.'; }
 </script>
 
+<div class="live-region" aria-live="polite" aria-atomic="true">{announcement}</div>
+
 {#if path === '/privacy' || path === '/terms'}
   <Legal kind={path === '/privacy' ? 'privacy' : 'terms'} {navigate} />
 {:else}
@@ -458,8 +530,6 @@
 
   {#if !online}<div class="offline-banner" role="status">You’re offline. Current figures may be stale; new promises are paused until the shared server reconnects.</div>{/if}
   {#if demo}<div class="demo-banner" role="status"><span><strong>Demo</strong> — sample data, nothing is saved.</span><button class="text-button" onclick={resetDemo}>Reset demo</button><a class="text-button" href="/" onclick={(event) => { event.preventDefault(); navigate('/'); }}>Start for real</a></div>{/if}
-  <div class="live-region" aria-live="polite">{announcement}</div>
-
   {#if path === '/404'}
     <main id="main" class="center-state"><p class="eyebrow">404</p><h1>This page is not here.</h1><p>Use the live desk or the sample stockroom to continue.</p><a class="primary-button" href="/" onclick={(event) => { event.preventDefault(); navigate('/'); }}>Return home</a></main>
   {:else if landing}
@@ -634,7 +704,7 @@
   {/if}
 
   {#if modal}
-    <dialog bind:this={dialog} onclose={() => modal = null} oncancel={() => modal = null} aria-labelledby="dialog-title">
+    <dialog bind:this={dialog} onclose={handleDialogClose} oncancel={(event) => { event.preventDefault(); closeModal(); }} aria-labelledby="dialog-title">
       <button class="dialog-close" aria-label="Close dialog" onclick={closeModal}>×</button>
       {#if modal === 'hold' && selectedItem}
         <p class="eyebrow">Temporary promise</p><h2 id="dialog-title">Hold {selectedItem.name}</h2><p><span class="sku">{selectedItem.sku}</span> · <strong>{selectedItem.available} available now</strong></p>

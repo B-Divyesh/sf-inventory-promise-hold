@@ -1,10 +1,38 @@
 [
   {
     "id": "demo-isolated",
-    "claim": "The sample demo never saves to the live stockroom.",
+    "claim": "The demo never reads or writes live stockroom, operator, session, profile, reminder, or license state.",
     "where": "landing page, demo banner, README",
     "test": "npm run test:e2e -- --grep @claim:demo-isolated",
-    "sandbox": "fresh browser context opens /demo, creates a sample hold, and confirms no API write request is made"
+    "sandbox": "browser preloads hostile live workspace and license state, opens /demo, creates a hold, opens settings, and resets; asserts no product or license request, no real-key change, and no demo key remains after reset"
+  },
+  {
+    "id": "demo-seed-reset",
+    "claim": "The demo starts with three sample SKUs and one active hold; Reset demo restores that sample.",
+    "where": "README, demo guide",
+    "test": "npm run test:e2e -- --grep @claim:demo-seed-reset",
+    "sandbox": "fresh demo context asserts the seed, creates a second hold, resets, and asserts the original three SKUs and one hold with no persisted demo keys"
+  },
+  {
+    "id": "no-tracking",
+    "claim": "Stock Promise has no advertising or behavioral analytics.",
+    "where": "privacy page",
+    "test": "npm run test:e2e -- --grep @claim:no-tracking",
+    "sandbox": "fresh context visits home, privacy, and demo, creates a demo hold, and asserts every request is same-origin and no cookie is set"
+  },
+  {
+    "id": "browser-storage",
+    "claim": "Live sign-in state uses browser session storage; operator profiles, licenses, and reminder settings use browser local storage.",
+    "where": "privacy page",
+    "test": "npm run test:e2e -- --grep @claim:browser-storage",
+    "sandbox": "fresh local live workspace signs in, creates a hold, restores a fixture license, saves an operator profile, enables reminders, and asserts each value is in its documented browser storage"
+  },
+  {
+    "id": "hosted-access",
+    "claim": "Hosted access uses Sociobot Microsoft Entra External ID.",
+    "where": "live access screen, privacy page, README",
+    "test": "cargo test claim_hosted_access_uses_sociobot_ciam_by_default --quiet",
+    "sandbox": "default production auth configuration asserts CIAM mode, the Sociobot customer tenant, and the registered application client"
   },
   {
     "id": "csv-export",
