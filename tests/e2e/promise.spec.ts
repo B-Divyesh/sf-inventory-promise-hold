@@ -199,7 +199,7 @@ test('390px reduced-motion shell updates and explains an offline reload', async 
     await registration.update();
     return registration.active?.scriptURL;
   });
-  expect(script).toBe('http://127.0.0.1:4178/sw.js');
+  expect(script).toMatch(/^http:\/\/127\.0\.0\.1:4178\/sw\.js\?v=/);
   await context.setOffline(true);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.getByText(/Demo.*sample data/i)).toBeVisible();
@@ -438,8 +438,13 @@ test('@claim:offline-demo sample opens offline after first visit', async ({ brow
   const page = await context.newPage();
   await page.goto('/demo', { waitUntil: 'networkidle' });
   await page.evaluate(() => navigator.serviceWorker.ready);
-  await page.reload({ waitUntil: 'networkidle' });
-  await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+  const cachedAssets = await page.evaluate(async () => {
+    const keys = await caches.keys();
+    const requests = (await Promise.all(keys.map(async (key) => (await (await caches.open(key)).keys()).map((request) => request.url)))).flat();
+    return requests.filter((url) => /\/assets\/index-.*\.(?:js|css)$/.test(url));
+  });
+  expect(cachedAssets.some((url) => url.endsWith('.js'))).toBe(true);
+  expect(cachedAssets.some((url) => url.endsWith('.css'))).toBe(true);
   await context.setOffline(true);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.getByText('Demo — sample data, nothing is saved.')).toBeVisible();

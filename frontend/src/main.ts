@@ -5,6 +5,6 @@ import './styles.css';
 mount(App, { target: document.getElementById('app')! });
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+  const version = import.meta.env.VITE_BUILD_SHA || 'dev';
+  window.addEventListener('load', () => navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(version)}`));
 }
-

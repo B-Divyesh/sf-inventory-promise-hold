@@ -28,6 +28,10 @@
 6. The claims manifest now covers demo seed/reset, storage isolation, browser
    storage, no tracking, and hosted Microsoft Entra access. Each new claim has
    a dedicated tagged regression.
+7. The service worker now versions its cache with the build SHA, precaches the
+   current hashed JavaScript and CSS on first visit, and returns HTML fallbacks
+   only for navigation requests. This prevents old shell HTML or missing assets
+   from producing script/style MIME errors after an update.
 
 ## Exact regression evidence
 
@@ -59,8 +63,8 @@ Escape, and that Back and Forward both focus and announce the route `<h1>`.
   with warnings denied.
 - `cargo fmt --all -- --check`, deployment script syntax, and
   `git diff --check`: passed.
-- `npm run build`: `dist/` produced; initial app JavaScript 94.66 KB raw /
-  33.86 KB gzip, CSS 21.06 KB raw / 5.57 KB gzip, mobile hero 15.4 KB.
+- `npm run build`: `dist/` produced; initial app JavaScript 94.69 KB raw /
+  33.89 KB gzip, CSS 21.06 KB raw / 5.57 KB gzip, mobile hero 15.4 KB.
 - `BUILD_SHA=repair-5-local cargo build --release --locked`: passed.
 - Release-binary load smoke: 200/200 `/health` responses, 0 bad identities,
   1,097 ms total, about 182 requests/second.
@@ -68,8 +72,8 @@ Escape, and that Back and Forward both focus and announce the route `<h1>`.
   privacy, and terms.
 - Browser coverage includes 1440px desktop, 390×844 mobile, keyboard-only
   dialog use, 200% text reflow, 44px targets, reduced motion, offline demo
-  reload, service-worker update, request privacy, route metadata, security
-  headers, caching, and response policy.
+  reload from the first visit, build-versioned service-worker update, request
+  privacy, route metadata, security headers, caching, and response policy.
 
 The release is deployed with `npm run deploy`. That command is scoped to
 `sf-inventory-promise-hold`, verifies the existing one-replica `/data` mount,
