@@ -1,0 +1,14 @@
+{
+  "url": "https://inventory-promise-hold.sociobot.in",
+  "loadMs": 593,
+  "errors": [],
+  "a11y": {
+    "title": "Stock Promise — timed inventory holds",
+    "lang": "en",
+    "h1": 1,
+    "main": true,
+    "imgsMissingAlt": 0,
+    "buttonsUnlabeled": 0,
+    "textLength": 1172
+  }
+}

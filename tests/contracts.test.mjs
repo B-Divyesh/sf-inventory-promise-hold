@@ -123,3 +123,22 @@ test('every registered claim has one tagged sandbox test', async () => {
     assert.match(entry.test, /(?:npm run test:e2e -- --grep @claim:|cargo test claim_)/);
   }
 });
+
+test('reviewed visitor copy uses one plain term for each concept', async () => {
+  const [readme, app, legal, notFound] = await Promise.all([
+    readFile(new URL('../README.md', import.meta.url), 'utf8'),
+    readFile(new URL('../frontend/src/App.svelte', import.meta.url), 'utf8'),
+    readFile(new URL('../frontend/src/Legal.svelte', import.meta.url), 'utf8'),
+    readFile(new URL('../frontend/public/404.html', import.meta.url), 'utf8'),
+  ]);
+  assert.match(readme, /^# Timed inventory holds for parallel orders$/m);
+  assert.match(readme, /Sign-in roles\s+set what each person can do:/);
+  assert.match(readme, /as the sign-in\s+return address\./);
+  assert.match(readme, /Deployment keeps the SQLite database in `\/data` and runs one app replica\./);
+  assert.doesNotMatch(`${readme}\n${app}\n${legal}`, /audit (?:trail|ledger|events?)/i);
+  assert.doesNotMatch(readme, /CIAM app roles|work-order deployment|SPA redirect URI/);
+  assert.match(legal, /Do not interfere with normal service use or present inaccurate stock availability to customers\./);
+  assert.doesNotMatch(legal, /bypass access controls/);
+  assert.match(app, /Open a sample stockroom\./);
+  assert.match(notFound, /<h1>Page not found<\/h1>/);
+});
