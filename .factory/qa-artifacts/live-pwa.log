@@ -1,0 +1,11 @@
+{
+  "controlled": true,
+  "registration": {
+    "scope": "https://inventory-promise-hold.sociobot.in/",
+    "script": "https://inventory-promise-hold.sociobot.in/sw.js"
+  },
+  "offlineBanner": true,
+  "offlineDesk": true,
+  "errors": [],
+  "pass": true
+}

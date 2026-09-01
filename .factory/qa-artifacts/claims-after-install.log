@@ -1,0 +1,287 @@
+CLAIM demo-isolated
+
+> stock-promise@0.1.0 test:e2e
+> npm run build && rm -f target/stock-promise-e2e.db target/stock-promise-e2e.db-shm target/stock-promise-e2e.db-wal && playwright test --grep @claim:demo-isolated
+
+
+> stock-promise@0.1.0 build
+> vite build --config frontend/vite.config.ts
+
+7:40:50 PM [vite-plugin-svelte] no Svelte config found at /work/repo/frontend - using default configuration.
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 257 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/index.html                   1.73 kB │ gzip:  0.57 kB
+../dist/assets/index-Bq2a3Z1V.css   21.06 kB │ gzip:  5.57 kB
+../dist/assets/index-2Fvw72Xg.js    93.43 kB │ gzip: 33.32 kB
+../dist/assets/index-BI-C95S3.js   279.01 kB │ gzip: 70.16 kB
+✓ built in 4.17s
+
+Running 1 test using 1 worker
+
+[1A[2K(node:4941) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K(node:4941) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K[1/1] [mobile-chromium] › tests/e2e/promise.spec.ts:204:1 › @claim:demo-isolated sample changes never call a live write API
+[1A[2K  1 passed (22.2s)
+RESULT demo-isolated 0
+CLAIM csv-export
+
+> stock-promise@0.1.0 test:e2e
+> npm run build && rm -f target/stock-promise-e2e.db target/stock-promise-e2e.db-shm target/stock-promise-e2e.db-wal && playwright test --grep @claim:csv-export
+
+
+> stock-promise@0.1.0 build
+> vite build --config frontend/vite.config.ts
+
+7:41:19 PM [vite-plugin-svelte] no Svelte config found at /work/repo/frontend - using default configuration.
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 257 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/index.html                   1.73 kB │ gzip:  0.57 kB
+../dist/assets/index-Bq2a3Z1V.css   21.06 kB │ gzip:  5.57 kB
+../dist/assets/index-2Fvw72Xg.js    93.43 kB │ gzip: 33.32 kB
+../dist/assets/index-BI-C95S3.js   279.01 kB │ gzip: 70.16 kB
+✓ built in 4.01s
+
+Running 1 test using 1 worker
+
+[1A[2K(node:5106) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K(node:5106) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K[1/1] [mobile-chromium] › tests/e2e/promise.spec.ts:223:1 › @claim:csv-export demo exports a header and sample outcome
+[1A[2K  1 passed (5.1s)
+RESULT csv-export 0
+CLAIM offline-demo
+
+> stock-promise@0.1.0 test:e2e
+> npm run build && rm -f target/stock-promise-e2e.db target/stock-promise-e2e.db-shm target/stock-promise-e2e.db-wal && playwright test --grep @claim:offline-demo
+
+
+> stock-promise@0.1.0 build
+> vite build --config frontend/vite.config.ts
+
+7:41:31 PM [vite-plugin-svelte] no Svelte config found at /work/repo/frontend - using default configuration.
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 257 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/index.html                   1.73 kB │ gzip:  0.57 kB
+../dist/assets/index-Bq2a3Z1V.css   21.06 kB │ gzip:  5.57 kB
+../dist/assets/index-2Fvw72Xg.js    93.43 kB │ gzip: 33.32 kB
+../dist/assets/index-BI-C95S3.js   279.01 kB │ gzip: 70.16 kB
+✓ built in 4.12s
+
+Running 1 test using 1 worker
+
+[1A[2K(node:5257) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K(node:5257) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K[1/1] [mobile-chromium] › tests/e2e/promise.spec.ts:237:1 › @claim:offline-demo sample opens offline after first visit
+[1A[2K  1 passed (4.1s)
+RESULT offline-demo 0
+CLAIM role-boundary
+
+running 1 test
+.
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.01s
+
+RESULT role-boundary 0
+CLAIM rate-limit
+
+running 1 test
+.
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.05s
+
+RESULT rate-limit 0
+CLAIM retention-redaction
+
+running 1 test
+.
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.01s
+
+RESULT retention-redaction 0
+CLAIM automatic-expiry
+
+running 1 test
+.
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.01s
+
+RESULT automatic-expiry 0
+CLAIM contested-stock-protection
+
+running 1 test
+.
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.19s
+
+RESULT contested-stock-protection 0
+CLAIM append-only-audit
+
+running 1 test
+.
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.02s
+
+RESULT append-only-audit 0
+CLAIM location-erasure
+
+running 1 test
+.
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.01s
+
+RESULT location-erasure 0
+CLAIM pro-profiles-reminders
+
+> stock-promise@0.1.0 test:e2e
+> npm run build && rm -f target/stock-promise-e2e.db target/stock-promise-e2e.db-shm target/stock-promise-e2e.db-wal && playwright test --grep @claim:pro-profiles-reminders
+
+
+> stock-promise@0.1.0 build
+> vite build --config frontend/vite.config.ts
+
+7:41:43 PM [vite-plugin-svelte] no Svelte config found at /work/repo/frontend - using default configuration.
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 257 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/index.html                   1.73 kB │ gzip:  0.57 kB
+../dist/assets/index-Bq2a3Z1V.css   21.06 kB │ gzip:  5.57 kB
+../dist/assets/index-2Fvw72Xg.js    93.43 kB │ gzip: 33.32 kB
+../dist/assets/index-BI-C95S3.js   279.01 kB │ gzip: 70.16 kB
+✓ built in 4.01s
+
+Running 1 test using 1 worker
+
+[1A[2K(node:5502) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K(node:5502) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K[1/1] [mobile-chromium] › tests/e2e/promise.spec.ts:251:1 › @claim:pro-profiles-reminders a verified license saves profiles and sends an on-device expiry reminder
+[1A[2K  1 passed (4.8s)
+RESULT pro-profiles-reminders 0
+CLAIM pro-license-restore
+
+> stock-promise@0.1.0 test:e2e
+> npm run build && rm -f target/stock-promise-e2e.db target/stock-promise-e2e.db-shm target/stock-promise-e2e.db-wal && playwright test --grep @claim:pro-license-restore
+
+
+> stock-promise@0.1.0 build
+> vite build --config frontend/vite.config.ts
+
+7:41:54 PM [vite-plugin-svelte] no Svelte config found at /work/repo/frontend - using default configuration.
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 257 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/index.html                   1.73 kB │ gzip:  0.57 kB
+../dist/assets/index-Bq2a3Z1V.css   21.06 kB │ gzip:  5.57 kB
+../dist/assets/index-2Fvw72Xg.js    93.43 kB │ gzip: 33.32 kB
+../dist/assets/index-BI-C95S3.js   279.01 kB │ gzip: 70.16 kB
+✓ built in 4.03s
+
+Running 1 test using 1 worker
+
+[1A[2K(node:5650) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K(node:5650) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K[1/1] [mobile-chromium] › tests/e2e/promise.spec.ts:295:1 › @claim:pro-license-restore verifies a pasted existing license without leaving the product
+[1A[2K  1 passed (5.1s)
+RESULT pro-license-restore 0
+CLAIM pro-checkout-status
+
+> stock-promise@0.1.0 test:e2e
+> npm run build && rm -f target/stock-promise-e2e.db target/stock-promise-e2e.db-shm target/stock-promise-e2e.db-wal && playwright test --grep @claim:pro-checkout-status
+
+
+> stock-promise@0.1.0 build
+> vite build --config frontend/vite.config.ts
+
+7:42:06 PM [vite-plugin-svelte] no Svelte config found at /work/repo/frontend - using default configuration.
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 257 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/index.html                   1.73 kB │ gzip:  0.57 kB
+../dist/assets/index-Bq2a3Z1V.css   21.06 kB │ gzip:  5.57 kB
+../dist/assets/index-2Fvw72Xg.js    93.43 kB │ gzip: 33.32 kB
+../dist/assets/index-BI-C95S3.js   279.01 kB │ gzip: 70.16 kB
+✓ built in 4.02s
+
+Running 1 test using 1 worker
+
+[1A[2K(node:5815) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K(node:5815) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K[1/1] [mobile-chromium] › tests/e2e/promise.spec.ts:313:1 › @claim:pro-checkout-status does not offer the recorded unavailable checkout route
+[1A[2K  1 passed (4.1s)
+RESULT pro-checkout-status 0
+CLAIM core-features-no-pro
+
+> stock-promise@0.1.0 test:e2e
+> npm run build && rm -f target/stock-promise-e2e.db target/stock-promise-e2e.db-shm target/stock-promise-e2e.db-wal && playwright test --grep @claim:core-features-no-pro
+
+
+> stock-promise@0.1.0 build
+> vite build --config frontend/vite.config.ts
+
+7:42:16 PM [vite-plugin-svelte] no Svelte config found at /work/repo/frontend - using default configuration.
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 257 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/index.html                   1.73 kB │ gzip:  0.57 kB
+../dist/assets/index-Bq2a3Z1V.css   21.06 kB │ gzip:  5.57 kB
+../dist/assets/index-2Fvw72Xg.js    93.43 kB │ gzip: 33.32 kB
+../dist/assets/index-BI-C95S3.js   279.01 kB │ gzip: 70.16 kB
+✓ built in 4.06s
+
+Running 1 test using 1 worker
+
+[1A[2K(node:5960) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K(node:5960) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K[1/1] [mobile-chromium] › tests/e2e/promise.spec.ts:323:1 › @claim:core-features-no-pro creates a hold and exports CSV without a license
+[1A[2K  1 passed (4.0s)
+RESULT core-features-no-pro 0

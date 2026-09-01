@@ -1,0 +1,21 @@
+{
+  "result": {
+    "quantityZeroRejected": true,
+    "aboveAvailabilityRejected": true,
+    "blankCustomerRejected": true,
+    "fullQuantityAccepted": true,
+    "maxDurationShown": true,
+    "releaseRestored": true,
+    "conversionRecorded": true,
+    "csvQuoted": true,
+    "resetRestored": true,
+    "noLiveWrites": true,
+    "noConsoleErrors": true,
+    "noPageErrors": true,
+    "noCookies": true
+  },
+  "writes": [],
+  "errors": [],
+  "pageErrors": [],
+  "pass": true
+}

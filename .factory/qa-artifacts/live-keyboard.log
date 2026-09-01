@@ -1,0 +1,74 @@
+{
+  "reachedCreateHold": true,
+  "tabSequence": [
+    {
+      "tag": "A",
+      "text": "Skip to promise desk",
+      "aria": null
+    },
+    {
+      "tag": "A",
+      "text": "Stock Promise",
+      "aria": null
+    },
+    {
+      "tag": "A",
+      "text": "Demo",
+      "aria": null
+    },
+    {
+      "tag": "A",
+      "text": "Privacy",
+      "aria": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Lock supervisor 🔒",
+      "aria": "Lock supervisor"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Reset demo",
+      "aria": null
+    },
+    {
+      "tag": "A",
+      "text": "Start for real",
+      "aria": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Live desk 1",
+      "aria": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Outcomes",
+      "aria": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Stock & settings",
+      "aria": null
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "aria": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Create hold",
+      "aria": null
+    }
+  ],
+  "dialogOpen": true,
+  "initialInside": true,
+  "initialName": "Close dialog",
+  "escapeClosed": true,
+  "focusReturned": false,
+  "submitName": "Demo",
+  "keyboardCreated": false,
+  "errors": [],
+  "pass": false
+}

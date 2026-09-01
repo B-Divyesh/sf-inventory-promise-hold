@@ -1,0 +1,518 @@
+GATE npm-test
+
+> stock-promise@0.1.0 test
+> vitest run --config frontend/vite.config.ts && node --test tests/contracts.test.mjs && cargo test --quiet
+
+7:42:42 PM [vite-plugin-svelte] no Svelte config found at /work/repo/frontend - using default configuration.
+
+ RUN  v3.2.7 /work/repo/frontend
+
+ ✓ src/time.test.ts (1 test) 3ms
+ ✓ src/metadata.test.ts (2 tests) 81ms
+
+ Test Files  2 passed (2)
+      Tests  3 passed (3)
+   Start at  19:42:42
+   Duration  2.69s (transform 160ms, setup 0ms, collect 183ms, tests 84ms, environment 2.64s, prepare 669ms)
+
+TAP version 13
+# Subtest: container uses current stable Rust and declares durable /data
+ok 1 - container uses current stable Rust and declares durable /data
+  ---
+  duration_ms: 14.219823
+  type: 'test'
+  ...
+# Subtest: runtime uses a single SQLite writer compatible with the durable Azure Files mount
+ok 2 - runtime uses a single SQLite writer compatible with the durable Azure Files mount
+  ---
+  duration_ms: 3.467857
+  type: 'test'
+  ...
+# Subtest: topology verifier requires the work-order one-replica /data mount
+ok 3 - topology verifier requires the work-order one-replica /data mount
+  ---
+  duration_ms: 2.664567
+  type: 'test'
+  ...
+# Subtest: topology verifier accepts exactly one ready mounted target
+ok 4 - topology verifier accepts exactly one ready mounted target
+  ---
+  duration_ms: 22.172723
+  type: 'test'
+  ...
+# Subtest: topology verifier rejects the split-brain deployment
+ok 5 - topology verifier rejects the split-brain deployment
+  ---
+  duration_ms: 23.601006
+  type: 'test'
+  ...
+# Subtest: release delegates durable volume provisioning to the factory deployment command
+ok 6 - release delegates durable volume provisioning to the factory deployment command
+  ---
+  duration_ms: 60.796441
+  type: 'test'
+  ...
+# Subtest: recorded unavailable checkout is not offered by the product source
+ok 7 - recorded unavailable checkout is not offered by the product source
+  ---
+  duration_ms: 1.528881
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 215.906207
+
+running 17 tests
+.................
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+
+RESULT npm-test 0
+GATE npm-check
+
+> stock-promise@0.1.0 check
+> svelte-check --tsconfig frontend/tsconfig.json && cargo clippy --all-targets -- -D warnings
+
+Loading svelte-check in workspace: /work/repo
+Getting Svelte diagnostics...
+
+svelte-check found 0 errors and 0 warnings
+    Checking libc v0.2.189
+    Checking cfg-if v1.0.4
+    Checking smallvec v1.15.2
+    Checking pin-project-lite v0.2.17
+    Checking futures-core v0.3.34
+    Checking itoa v1.0.18
+    Checking scopeguard v1.2.0
+    Checking lock_api v0.4.14
+   Compiling zerofrom v0.1.8
+    Checking bytes v1.12.1
+    Checking stable_deref_trait v1.2.1
+    Checking once_cell v1.21.4
+   Compiling yoke v0.8.3
+    Checking parking_lot_core v0.9.12
+    Checking memchr v2.8.3
+    Checking parking_lot v0.12.5
+    Checking zerovec v0.11.8
+    Checking getrandom v0.2.17
+    Checking errno v0.3.14
+    Checking futures-sink v0.3.34
+    Checking signal-hook-registry v1.4.8
+    Checking serde_core v1.0.229
+    Checking tracing-core v0.1.36
+    Checking socket2 v0.6.5
+    Checking mio v1.2.2
+    Checking tokio v1.53.1
+    Checking log v0.4.34
+   Compiling tinystr v0.8.4
+    Checking litemap v0.8.3
+    Checking writeable v0.6.4
+    Checking subtle v2.6.1
+   Compiling icu_locale_core v2.3.0
+    Checking tracing v0.1.44
+   Compiling potential_utf v0.1.6
+    Checking zerotrie v0.2.5
+   Compiling utf8_iter v1.0.4
+    Checking percent-encoding v2.3.2
+    Checking futures-io v0.3.34
+    Checking futures-task v0.3.34
+    Checking zeroize v1.9.0
+    Checking slab v0.4.12
+    Checking icu_collections v2.3.0
+    Checking futures-util v0.3.34
+    Checking rustls-pki-types v1.15.1
+   Compiling icu_provider v2.3.1
+    Checking serde v1.0.229
+    Checking typenum v1.20.1
+    Checking untrusted v0.9.0
+    Checking ring v0.17.14
+   Compiling generic-array v0.14.7
+    Checking http v1.5.0
+   Compiling icu_properties_data v2.3.0
+    Checking icu_normalizer_data v2.3.0
+    Checking base64 v0.22.1
+   Compiling icu_normalizer v2.3.0
+    Checking icu_properties v2.3.0
+    Checking http-body v1.1.0
+    Checking form_urlencoded v1.2.2
+    Checking zmij v1.0.23
+   Compiling equivalent v1.0.2
+    Checking serde_json v1.0.151
+    Checking num-traits v0.2.19
+   Compiling idna_adapter v1.2.2
+    Checking block-buffer v0.10.4
+    Checking crypto-common v0.1.7
+    Checking rustls-webpki v0.103.15
+    Checking futures-channel v0.3.34
+   Compiling allocator-api2 v0.2.21
+   Compiling foldhash v0.1.5
+    Checking tower-service v0.3.3
+   Compiling hashbrown v0.15.5
+    Checking rustls v0.23.43
+   Compiling digest v0.10.7
+    Checking idna v1.1.0
+   Compiling webpki-roots v1.0.9
+   Compiling crossbeam-utils v0.8.22
+    Checking httpdate v1.0.3
+   Compiling crc-catalog v2.5.0
+   Compiling parking v2.2.1
+    Checking ryu v1.0.23
+   Compiling cpufeatures v0.2.17
+    Checking try-lock v0.2.5
+   Compiling hashbrown v0.17.1
+   Compiling indexmap v2.14.0
+    Checking want v0.3.1
+   Compiling sha2 v0.10.9
+   Compiling event-listener v5.4.2
+   Compiling crc v3.4.0
+   Compiling crossbeam-queue v0.3.13
+   Compiling webpki-roots v0.26.11
+   Compiling url v2.5.8
+   Compiling futures-intrusive v0.5.0
+    Checking httparse v1.10.1
+   Compiling hashlink v0.10.0
+   Compiling tokio-stream v0.1.19
+   Compiling either v1.18.0
+   Compiling spin v0.9.9
+   Compiling thiserror v2.0.20
+    Checking sync_wrapper v1.0.2
+    Checking tower-layer v0.3.3
+    Checking mime v0.3.17
+   Compiling unicase v2.9.0
+    Checking atomic-waker v1.1.2
+   Compiling serde_urlencoded v0.7.1
+    Checking hyper v1.11.0
+   Compiling mime_guess v2.0.5
+   Compiling sqlx-core v0.8.6
+   Compiling flume v0.11.1
+   Compiling atoi v2.0.0
+   Compiling futures-executor v0.3.34
+   Compiling libsqlite3-sys v0.30.1
+    Checking http-body-util v0.1.5
+    Checking rand_core v0.6.4
+    Checking ipnet v2.12.1
+   Compiling time-core v0.1.9
+    Checking bitflags v2.13.1
+   Compiling num-conv v0.2.2
+   Compiling time-macros v0.2.32
+    Checking hyper-util v0.1.20
+   Compiling sqlx-sqlite v0.8.6
+    Checking zerocopy v0.8.56
+    Checking tower v0.5.3
+    Checking num-integer v0.1.47
+    Checking regex-syntax v0.8.11
+    Checking deranged v0.5.8
+    Checking powerfmt v0.2.0
+    Checking time v0.3.55
+   Compiling sqlx-macros-core v0.8.6
+    Checking regex-automata v0.4.18
+    Checking num-bigint v0.4.8
+    Checking ppv-lite86 v0.2.21
+    Checking getrandom v0.4.3
+    Checking tokio-rustls v0.26.4
+    Checking tokio-util v0.7.19
+    Checking base64ct v1.8.3
+    Checking lazy_static v1.5.0
+    Checking http-range-header v0.4.2
+    Checking tower-http v0.6.11
+    Checking sharded-slab v0.1.7
+    Checking password-hash v0.5.0
+    Checking hyper-rustls v0.27.9
+    Checking rand_chacha v0.3.1
+    Checking simple_asn1 v0.6.4
+    Checking matchers v0.2.0
+   Compiling sqlx-macros v0.8.6
+    Checking axum-core v0.5.6
+    Checking blake2 v0.10.6
+    Checking pem v3.0.6
+    Checking tracing-serde v0.2.0
+    Checking tracing-log v0.2.0
+    Checking serde_path_to_error v0.1.20
+    Checking csv-core v0.1.13
+    Checking thread_local v1.1.10
+    Checking linux-raw-sys v0.12.1
+    Checking matchit v0.8.4
+    Checking nu-ansi-term v0.50.3
+    Checking tracing-subscriber v0.3.23
+    Checking axum v0.8.9
+    Checking rustix v1.1.4
+    Checking csv v1.4.0
+    Checking jsonwebtoken v9.3.1
+    Checking argon2 v0.5.3
+    Checking sqlx v0.8.6
+    Checking rand v0.8.8
+    Checking reqwest v0.12.28
+    Checking uuid v1.26.0
+    Checking fastrand v2.5.0
+    Checking tempfile v3.27.0
+    Checking stock-promise v0.1.0 (/work/repo)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 26s
+RESULT npm-check 0
+GATE cargo-fmt
+RESULT cargo-fmt 0
+GATE shell-syntax
+RESULT shell-syntax 0
+GATE diff-check
+RESULT diff-check 0
+GATE production-frontend
+
+> stock-promise@0.1.0 build
+> vite build --config frontend/vite.config.ts
+
+7:44:20 PM [vite-plugin-svelte] no Svelte config found at /work/repo/frontend - using default configuration.
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 257 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/index.html                   1.73 kB │ gzip:  0.57 kB
+../dist/assets/index-Bq2a3Z1V.css   21.06 kB │ gzip:  5.57 kB
+../dist/assets/index-2Fvw72Xg.js    93.43 kB │ gzip: 33.32 kB
+../dist/assets/index-BI-C95S3.js   279.01 kB │ gzip: 70.16 kB
+✓ built in 4.06s
+RESULT production-frontend 0
+GATE full-e2e
+
+> stock-promise@0.1.0 test:e2e
+> npm run build && rm -f target/stock-promise-e2e.db target/stock-promise-e2e.db-shm target/stock-promise-e2e.db-wal && playwright test
+
+
+> stock-promise@0.1.0 build
+> vite build --config frontend/vite.config.ts
+
+7:44:25 PM [vite-plugin-svelte] no Svelte config found at /work/repo/frontend - using default configuration.
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 257 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/index.html                   1.73 kB │ gzip:  0.57 kB
+../dist/assets/index-Bq2a3Z1V.css   21.06 kB │ gzip:  5.57 kB
+../dist/assets/index-2Fvw72Xg.js    93.43 kB │ gzip: 33.32 kB
+../dist/assets/index-BI-C95S3.js   279.01 kB │ gzip: 70.16 kB
+✓ built in 4.22s
+
+Running 14 tests using 1 worker
+
+[1A[2K(node:8365) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K(node:8365) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K[1/14] [mobile-chromium] › tests/e2e/promise.spec.ts:4:1 › sets up a location and completes the hold lifecycle on a phone
+[1A[2K[2/14] [mobile-chromium] › tests/e2e/promise.spec.ts:68:1 › legal pages stay semantic and reachable
+[1A[2K[3/14] [mobile-chromium] › tests/e2e/promise.spec.ts:79:1 › public routes keep one route-specific canonical and description
+[1A[2K[4/14] [mobile-chromium] › tests/e2e/promise.spec.ts:100:1 › direct routes, cache policy, metadata, and security headers are production-safe
+[1A[2K[5/14] [mobile-chromium] › tests/e2e/promise.spec.ts:123:1 › desktop keyboard access gate recovers from an invalid PIN
+[1A[2K[6/14] [mobile-chromium] › tests/e2e/promise.spec.ts:144:1 › 390px reduced-motion shell updates and explains an offline reload
+[1A[2K[7/14] [mobile-chromium] › tests/e2e/promise.spec.ts:170:1 › 390px targets are at least 44px and 200% text does not widen the demo
+[1A[2K[8/14] [mobile-chromium] › tests/e2e/promise.spec.ts:204:1 › @claim:demo-isolated sample changes never call a live write API
+[1A[2K[9/14] [mobile-chromium] › tests/e2e/promise.spec.ts:223:1 › @claim:csv-export demo exports a header and sample outcome
+[1A[2K[10/14] [mobile-chromium] › tests/e2e/promise.spec.ts:237:1 › @claim:offline-demo sample opens offline after first visit
+[1A[2K[11/14] [mobile-chromium] › tests/e2e/promise.spec.ts:251:1 › @claim:pro-profiles-reminders a verified license saves profiles and sends an on-device expiry reminder
+[1A[2K[12/14] [mobile-chromium] › tests/e2e/promise.spec.ts:295:1 › @claim:pro-license-restore verifies a pasted existing license without leaving the product
+[1A[2K[13/14] [mobile-chromium] › tests/e2e/promise.spec.ts:313:1 › @claim:pro-checkout-status does not offer the recorded unavailable checkout route
+[1A[2K[14/14] [mobile-chromium] › tests/e2e/promise.spec.ts:323:1 › @claim:core-features-no-pro creates a hold and exports CSV without a license
+[1A[2K  14 passed (30.8s)
+RESULT full-e2e 0
+GATE production-backend
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.47
+   Compiling syn v3.0.4
+   Compiling libc v0.2.189
+   Compiling syn v2.0.119
+   Compiling synstructure v0.13.2
+   Compiling zerofrom-derive v0.1.7
+   Compiling yoke-derive v0.8.2
+   Compiling cfg-if v1.0.4
+   Compiling zerovec-derive v0.11.6
+   Compiling displaydoc v0.2.7
+   Compiling find-msvc-tools v0.1.11
+   Compiling shlex v2.0.1
+   Compiling cc v1.4.4
+   Compiling parking_lot_core v0.9.12
+   Compiling version_check v0.9.5
+   Compiling smallvec v1.15.2
+   Compiling generic-array v0.14.7
+   Compiling pin-project-lite v0.2.17
+   Compiling icu_normalizer_data v2.3.0
+   Compiling icu_properties_data v2.3.0
+   Compiling serde v1.0.229
+   Compiling futures-core v0.3.34
+   Compiling itoa v1.0.18
+   Compiling scopeguard v1.2.0
+   Compiling lock_api v0.4.14
+   Compiling zerofrom v0.1.8
+   Compiling serde_derive v1.0.229
+   Compiling stable_deref_trait v1.2.1
+   Compiling bytes v1.12.1
+   Compiling yoke v0.8.3
+   Compiling tracing-attributes v0.1.31
+   Compiling once_cell v1.21.4
+   Compiling autocfg v1.5.1
+   Compiling zmij v1.0.23
+   Compiling serde_core v1.0.229
+   Compiling memchr v2.8.3
+   Compiling parking_lot v0.12.5
+   Compiling zerovec v0.11.8
+   Compiling getrandom v0.2.17
+   Compiling errno v0.3.14
+   Compiling serde_json v1.0.151
+   Compiling futures-sink v0.3.34
+   Compiling signal-hook-registry v1.4.8
+   Compiling tracing-core v0.1.36
+   Compiling mio v1.2.2
+   Compiling socket2 v0.6.5
+   Compiling tokio-macros v2.7.2
+   Compiling rustls v0.23.43
+   Compiling tokio v1.53.1
+   Compiling thiserror v2.0.20
+   Compiling crossbeam-utils v0.8.22
+   Compiling log v0.4.34
+   Compiling tinystr v0.8.4
+   Compiling ring v0.17.14
+   Compiling writeable v0.6.4
+   Compiling subtle v2.6.1
+   Compiling litemap v0.8.3
+   Compiling icu_locale_core v2.3.0
+   Compiling tracing v0.1.44
+   Compiling potential_utf v0.1.6
+   Compiling zerotrie v0.2.5
+   Compiling thiserror-impl v2.0.20
+   Compiling utf8_iter v1.0.4
+   Compiling futures-io v0.3.34
+   Compiling percent-encoding v2.3.2
+   Compiling slab v0.4.12
+   Compiling zeroize v1.9.0
+   Compiling futures-task v0.3.34
+   Compiling futures-util v0.3.34
+   Compiling rustls-pki-types v1.15.1
+   Compiling icu_collections v2.3.0
+   Compiling icu_provider v2.3.1
+   Compiling typenum v1.20.1
+   Compiling pkg-config v0.3.34
+   Compiling untrusted v0.9.0
+   Compiling vcpkg v0.2.15
+   Compiling libsqlite3-sys v0.30.1
+   Compiling num-traits v0.2.19
+   Compiling http v1.5.0
+   Compiling base64 v0.22.1
+   Compiling http-body v1.1.0
+   Compiling icu_properties v2.3.0
+   Compiling icu_normalizer v2.3.0
+   Compiling form_urlencoded v1.2.2
+   Compiling equivalent v1.0.2
+   Compiling idna_adapter v1.2.2
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling rustls-webpki v0.103.15
+   Compiling futures-channel v0.3.34
+   Compiling tower-service v0.3.3
+   Compiling allocator-api2 v0.2.21
+   Compiling httparse v1.10.1
+   Compiling foldhash v0.1.5
+   Compiling hashbrown v0.15.5
+   Compiling digest v0.10.7
+   Compiling idna v1.1.0
+   Compiling webpki-roots v1.0.9
+   Compiling httpdate v1.0.3
+   Compiling hashbrown v0.17.1
+   Compiling cpufeatures v0.2.17
+   Compiling crc-catalog v2.5.0
+   Compiling ryu v1.0.23
+   Compiling try-lock v0.2.5
+   Compiling parking v2.2.1
+   Compiling event-listener v5.4.2
+   Compiling want v0.3.1
+   Compiling crc v3.4.0
+   Compiling sha2 v0.10.9
+   Compiling indexmap v2.14.0
+   Compiling webpki-roots v0.26.11
+   Compiling futures-intrusive v0.5.0
+   Compiling url v2.5.8
+   Compiling crossbeam-queue v0.3.13
+   Compiling hashlink v0.10.0
+   Compiling tokio-stream v0.1.19
+   Compiling either v1.18.0
+   Compiling spin v0.9.9
+   Compiling sync_wrapper v1.0.2
+   Compiling unicase v2.9.0
+   Compiling tower-layer v0.3.3
+   Compiling atomic-waker v1.1.2
+   Compiling mime v0.3.17
+   Compiling zerocopy v0.8.56
+   Compiling sqlx-core v0.8.6
+   Compiling serde_urlencoded v0.7.1
+   Compiling hyper v1.11.0
+   Compiling mime_guess v2.0.5
+   Compiling flume v0.11.1
+   Compiling atoi v2.0.0
+   Compiling futures-executor v0.3.34
+   Compiling http-body-util v0.1.5
+   Compiling rand_core v0.6.4
+   Compiling ipnet v2.12.1
+   Compiling num-conv v0.2.2
+   Compiling time-core v0.1.9
+   Compiling time-macros v0.2.32
+   Compiling hyper-util v0.1.20
+   Compiling sqlx-sqlite v0.8.6
+   Compiling tower v0.5.3
+   Compiling num-integer v0.1.47
+   Compiling getrandom v0.4.3
+   Compiling heck v0.5.0
+   Compiling regex-syntax v0.8.11
+   Compiling powerfmt v0.2.0
+   Compiling deranged v0.5.8
+   Compiling hex v0.4.3
+   Compiling dotenvy v0.15.7
+   Compiling sqlx-macros-core v0.8.6
+   Compiling time v0.3.55
+   Compiling regex-automata v0.4.18
+   Compiling num-bigint v0.4.8
+   Compiling ppv-lite86 v0.2.21
+   Compiling tokio-rustls v0.26.4
+   Compiling tokio-util v0.7.19
+   Compiling base64ct v1.8.3
+   Compiling http-range-header v0.4.2
+   Compiling bitflags v2.13.1
+   Compiling lazy_static v1.5.0
+   Compiling sharded-slab v0.1.7
+   Compiling tower-http v0.6.11
+   Compiling password-hash v0.5.0
+   Compiling hyper-rustls v0.27.9
+   Compiling rand_chacha v0.3.1
+   Compiling simple_asn1 v0.6.4
+   Compiling matchers v0.2.0
+   Compiling sqlx-macros v0.8.6
+   Compiling axum-core v0.5.6
+   Compiling blake2 v0.10.6
+   Compiling pem v3.0.6
+   Compiling tracing-serde v0.2.0
+   Compiling tracing-log v0.2.0
+   Compiling serde_path_to_error v0.1.20
+   Compiling csv-core v0.1.13
+   Compiling thread_local v1.1.10
+   Compiling axum-macros v0.5.1
+   Compiling matchit v0.8.4
+   Compiling nu-ansi-term v0.50.3
+   Compiling tracing-subscriber v0.3.23
+   Compiling axum v0.8.9
+   Compiling csv v1.4.0
+   Compiling jsonwebtoken v9.3.1
+   Compiling argon2 v0.5.3
+   Compiling sqlx v0.8.6
+   Compiling uuid v1.26.0
+   Compiling rand v0.8.8
+   Compiling reqwest v0.12.28
+   Compiling stock-promise v0.1.0 (/work/repo)
+    Finished `release` profile [optimized] target(s) in 5m 10s
+RESULT production-backend 0

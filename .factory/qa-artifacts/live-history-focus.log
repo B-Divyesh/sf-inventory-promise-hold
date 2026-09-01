@@ -1,0 +1,23 @@
+{
+  "afterLink": {
+    "url": "https://inventory-promise-hold.sociobot.in/privacy",
+    "activeTag": "H1",
+    "activeText": "Privacy for Stock Promise",
+    "announcement": []
+  },
+  "afterBack": {
+    "url": "https://inventory-promise-hold.sociobot.in/",
+    "activeTag": "BODY",
+    "activeText": "Skip to promise desk  Stock Promise Demo Privacy Shared live    Opened Privacy for Stock Promise. One shared location Hold scarce stock before it is promised twice. For distributors and resellers taking orders in parallel, Stock Promise shows a timed team hold before stock is promised. Try it with sample dataSee a working stockroom immediately. Timed holds expire automatically.The sample never changes a live stockroom.New Pro purchases are temporarily unavailable. Open the live desk  How it worksList stock. Add the SKUs that one location can promise.Place a hold. Staff name the customer, quantity, and expiry.Resolve it. A supervisor converts or releases the hold. What Stock Promise does not doIt is not a legal reservation, warehouse system, storefront, or replacement for your system of record.Supervisors choose when resolved customer references, notes, and operator names are removed. Optional Pro convenienceA verified Pro license enables local operator profiles and on-device expiry reminders. Core holds and CSV export do not require Pro.New Pro purchases are temporarily unavailable.  Timed shared holds for one location.PrivacyTermsBuilt by Param Factory · build 42d1acecc066 · AI-assisted image.",
+    "announcement": [
+      "Opened Privacy for Stock Promise."
+    ]
+  },
+  "afterForward": {
+    "url": "https://inventory-promise-hold.sociobot.in/privacy",
+    "activeTag": "BODY",
+    "activeText": "Skip to content  Stock Promise DemoPrivacy Product policy · 30 August 2026 Privacy for Stock Promise Stock Promise stores the inventory, customer references, operator names, and hold notes that your team enters. The hosted service stores this operational data in its durable database. What is stored Inventory records, temporary holds, outcomes, and an append-only audit trail are stored so the shared ledger works. Sociobot sign-in tokens stay in the current browser session. Operator preferences, an optional Pro license, and reminder preferences stay in this browser. What is sent elsewhere There is no advertising or behavioral analytics. Sign-in uses Sociobot CIAM. When an existing Pro license is verified, its token is sent to Sociobot’s billing API. New Pro purchases are temporarily unavailable. Retention and control A supervisor can set a 30–730 day period before resolved customer references, hold notes, and operator names are removed. The append-only audit ledger does not include those values for new holds. A supervisor can also permanently erase the whole location, including inventory, holds, sessions, and its audit record. Clearing browser data removes browser-only preferences and license tokens, but does not erase shared records. Contact For a data request, ask a supervisor for the location. Product privacy questions can be sent to privacy@sociobot.in. Return home Timed shared holds for one location.PrivacyTermsBuilt by Param Factory · build 42d1acecc066",
+    "announcement": []
+  },
+  "pass": false
+}

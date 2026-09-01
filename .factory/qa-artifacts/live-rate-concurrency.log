@@ -1,0 +1,30 @@
+{
+  "read_allowance": {
+    "counts": {
+      "200": 80,
+      "429": 10
+    },
+    "first_429": 81,
+    "retry_after": [
+      null
+    ]
+  },
+  "write_allowance": {
+    "counts": {
+      "401": 20,
+      "429": 10
+    },
+    "first_429": 21,
+    "retry_after": [
+      null
+    ]
+  },
+  "health_concurrency": {
+    "counts": {
+      "200": 100
+    },
+    "elapsed_seconds": 0.353,
+    "requests_per_second": 283.7,
+    "all_identity_match": true
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "pass": true,
+  "files": {
+    "/robots.txt": {
+      "status": 200,
+      "type": "text/plain",
+      "bytes": 88
+    },
+    "/sitemap.xml": {
+      "status": 200,
+      "type": "text/xml",
+      "bytes": 398
+    },
+    "/manifest.webmanifest": {
+      "status": 200,
+      "type": "application/manifest+json",
+      "bytes": 473
+    },
+    "/apple-touch-icon.png": {
+      "status": 200,
+      "type": "image/png",
+      "bytes": 41449
+    },
+    "/assets/stockroom-watch-social.jpg": {
+      "status": 200,
+      "type": "image/jpeg",
+      "bytes": 72081
+    }
+  }
+}

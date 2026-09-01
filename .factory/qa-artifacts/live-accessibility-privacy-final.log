@@ -1,0 +1,84 @@
+{
+  "pass": true,
+  "out": {
+    "desktop": {
+      "homeStatus": 200,
+      "firstRead": true,
+      "structure": true,
+      "imageAlt": true,
+      "homeAxe": [],
+      "demoAxe": [],
+      "reducedMotion": true,
+      "fitsWidth": true,
+      "oneClickDemo": true,
+      "firstFocus": true,
+      "focusStyle": {
+        "style": "solid",
+        "width": 3
+      },
+      "undersizedTargets": [],
+      "zoom200Fits": true,
+      "origins": [
+        "https://inventory-promise-hold.sociobot.in"
+      ],
+      "demoApiWrites": [],
+      "consoleErrors": [],
+      "pageErrors": [],
+      "requestFailures": []
+    },
+    "mobile390": {
+      "homeStatus": 200,
+      "firstRead": true,
+      "structure": true,
+      "imageAlt": true,
+      "homeAxe": [],
+      "demoAxe": [],
+      "reducedMotion": true,
+      "fitsWidth": true,
+      "oneClickDemo": true,
+      "firstFocus": true,
+      "focusStyle": {},
+      "undersizedTargets": [],
+      "zoom200Fits": true,
+      "origins": [
+        "https://inventory-promise-hold.sociobot.in"
+      ],
+      "demoApiWrites": [],
+      "consoleErrors": [],
+      "pageErrors": [],
+      "requestFailures": []
+    },
+    "routes": {
+      "404": {
+        "status": 404,
+        "title": "Page not found — Stock Promise",
+        "h1": [
+          "This page is not here."
+        ],
+        "returnLink": true
+      },
+      "/privacy": {
+        "status": 200,
+        "title": "Privacy — Stock Promise",
+        "h1": [
+          "Privacy for Stock Promise"
+        ],
+        "canonical": [
+          "https://inventory-promise-hold.sociobot.in/privacy"
+        ],
+        "axe": []
+      },
+      "/terms": {
+        "status": 200,
+        "title": "Terms — Stock Promise",
+        "h1": [
+          "Terms for temporary stock holds"
+        ],
+        "canonical": [
+          "https://inventory-promise-hold.sociobot.in/terms"
+        ],
+        "axe": []
+      }
+    }
+  }
+}

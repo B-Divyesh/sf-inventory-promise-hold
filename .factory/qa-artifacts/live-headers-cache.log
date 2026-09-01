@@ -1,0 +1,127 @@
+{
+  "/": {
+    "status": 200,
+    "cache_control": "no-cache, must-revalidate",
+    "content_type": "text/html",
+    "hsts": "max-age=31536000; includeSubDomains",
+    "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com; frame-src 'self' https://sociobotcustomers.ciamlogin.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com",
+    "nosniff": "nosniff",
+    "referrer": "same-origin",
+    "permissions": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    "bytes": 1733
+  },
+  "/demo": {
+    "status": 200,
+    "cache_control": "no-cache, must-revalidate",
+    "content_type": "text/html",
+    "hsts": "max-age=31536000; includeSubDomains",
+    "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com; frame-src 'self' https://sociobotcustomers.ciamlogin.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com",
+    "nosniff": "nosniff",
+    "referrer": "same-origin",
+    "permissions": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    "bytes": 1733
+  },
+  "/privacy": {
+    "status": 200,
+    "cache_control": "no-cache, must-revalidate",
+    "content_type": "text/html",
+    "hsts": "max-age=31536000; includeSubDomains",
+    "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com; frame-src 'self' https://sociobotcustomers.ciamlogin.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com",
+    "nosniff": "nosniff",
+    "referrer": "same-origin",
+    "permissions": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    "bytes": 1733
+  },
+  "/terms": {
+    "status": 200,
+    "cache_control": "no-cache, must-revalidate",
+    "content_type": "text/html",
+    "hsts": "max-age=31536000; includeSubDomains",
+    "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com; frame-src 'self' https://sociobotcustomers.ciamlogin.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com",
+    "nosniff": "nosniff",
+    "referrer": "same-origin",
+    "permissions": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    "bytes": 1733
+  },
+  "/does-not-exist": {
+    "status": 404,
+    "cache_control": "no-cache, must-revalidate",
+    "content_type": "text/html",
+    "hsts": "max-age=31536000; includeSubDomains",
+    "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com; frame-src 'self' https://sociobotcustomers.ciamlogin.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com",
+    "nosniff": "nosniff",
+    "referrer": "same-origin",
+    "permissions": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    "bytes": 1367
+  },
+  "/assets/index-BPKVpzp1.js": {
+    "status": 200,
+    "cache_control": "public, max-age=31536000, immutable",
+    "content_type": "text/javascript",
+    "hsts": "max-age=31536000; includeSubDomains",
+    "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com; frame-src 'self' https://sociobotcustomers.ciamlogin.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com",
+    "nosniff": "nosniff",
+    "referrer": "same-origin",
+    "permissions": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    "bytes": 93500
+  },
+  "/assets/stockroom-watch-640.webp": {
+    "status": 200,
+    "cache_control": "public, max-age=86400",
+    "content_type": "image/webp",
+    "hsts": "max-age=31536000; includeSubDomains",
+    "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com; frame-src 'self' https://sociobotcustomers.ciamlogin.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com",
+    "nosniff": "nosniff",
+    "referrer": "same-origin",
+    "permissions": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    "bytes": 15414
+  },
+  "/sw.js": {
+    "status": 200,
+    "cache_control": "no-cache, no-store, must-revalidate",
+    "content_type": "text/javascript",
+    "hsts": "max-age=31536000; includeSubDomains",
+    "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com; frame-src 'self' https://sociobotcustomers.ciamlogin.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com",
+    "nosniff": "nosniff",
+    "referrer": "same-origin",
+    "permissions": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    "bytes": 1008
+  },
+  "/health": {
+    "status": 200,
+    "cache_control": "no-store",
+    "content_type": "application/json",
+    "hsts": "max-age=31536000; includeSubDomains",
+    "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com; frame-src 'self' https://sociobotcustomers.ciamlogin.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com",
+    "nosniff": "nosniff",
+    "referrer": "same-origin",
+    "permissions": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    "bytes": 70
+  },
+  "/api/status": {
+    "status": 200,
+    "cache_control": "no-store",
+    "content_type": "application/json",
+    "hsts": "max-age=31536000; includeSubDomains",
+    "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com; frame-src 'self' https://sociobotcustomers.ciamlogin.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com",
+    "nosniff": "nosniff",
+    "referrer": "same-origin",
+    "permissions": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    "bytes": 48
+  },
+  "/api/bootstrap": {
+    "status": 401,
+    "cache_control": "no-store",
+    "content_type": "application/json",
+    "hsts": "max-age=31536000; includeSubDomains",
+    "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com; frame-src 'self' https://sociobotcustomers.ciamlogin.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com",
+    "nosniff": "nosniff",
+    "referrer": "same-origin",
+    "permissions": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    "bytes": 61
+  },
+  "origin check": {
+    "status": 200,
+    "access_control_allow_origin": null
+  }
+}

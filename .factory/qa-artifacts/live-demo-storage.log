@@ -1,0 +1,18 @@
+{
+  "before": {
+    "local": {},
+    "session": {}
+  },
+  "after": {
+    "local": {
+      "stock-promise:operator": "Demo-only operator"
+    },
+    "session": {
+      "demo:stock-promise:state": "{\"setup_required\":false,\"location_name\":\"Harbor Parts — sample\",\"server_time\":1788292833,\"role\":\"supervisor\",\"inventory\":[{\"id\":1,\"sku\":\"VALVE-24\",\"name\":\"Brass isolation valve\",\"on_hand\":12,\"held\":4,\"available\":8},{\"id\":2,\"sku\":\"FILTER-8\",\"name\":\"Cartridge filter\",\"on_hand\":6,\"held\":0,\"available\":6},{\"id\":3,\"sku\":\"SEAL-11\",\"name\":\"Nitrile seal set\",\"on_hand\":4,\"held\":0,\"available\":4}],\"active_holds\":[{\"id\":\"demo-active-1\",\"inventory_id\":1,\"sku\":\"VALVE-24\",\"item_name\":\"Brass isolation valve\",\"quantity\":3,\"customer\":\"Northline Plumbing order 418\",\"order_note\":\"Counter pickup\",\"operator_name\":\"Mina\",\"status\":\"active\",\"created_at\":1788292533,\"expires_at\":1788294333,\"resolved_at\":null,\"resolved_by\":null},{\"id\":\"demo-d2ddf24e-0c00-4288-8132-3973c38623e7\",\"inventory_id\":1,\"sku\":\"VALVE-24\",\"item_name\":\"Brass isolation valve\",\"quantity\":1,\"customer\":\"Storage check\",\"order_note\":\"\",\"operator_name\":\"Demo-only operator\",\"status\":\"active\",\"created_at\":1788292834,\"expires_at\":1788294634,\"resolved_at\":null,\"resolved_by\":null}],\"recent_outcomes\":[{\"id\":\"demo-outcome-1\",\"inventory_id\":2,\"sku\":\"FILTER-8\",\"item_name\":\"Cartridge filter\",\"quantity\":2,\"customer\":\"Tideway Maintenance order 771\",\"order_note\":\"\",\"operator_name\":\"Ravi\",\"status\":\"converted\",\"created_at\":1788285633,\"expires_at\":1788287433,\"resolved_at\":1788287733,\"resolved_by\":\"Supervisor\"}]}"
+    }
+  },
+  "nonDemoKeys": [
+    "stock-promise:operator"
+  ],
+  "pass": false
+}

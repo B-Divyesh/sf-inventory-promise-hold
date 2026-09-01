@@ -1,0 +1,18 @@
+{
+  "request": 81,
+  "status": 429,
+  "headers": {
+    "content-type": "application/json",
+    "retry-after": "59",
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "same-origin",
+    "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com; frame-src 'self' https://sociobotcustomers.ciamlogin.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.sociobot.in https://pilot-api.sociobot.in https://sociobotcustomers.ciamlogin.com",
+    "strict-transport-security": "max-age=31536000; includeSubDomains",
+    "permissions-policy": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    "content-length": "58",
+    "date": "Tue, 01 Sep 2026 19:54:44 GMT",
+    "connection": "close"
+  },
+  "retry_after_case_insensitive": "59"
+}

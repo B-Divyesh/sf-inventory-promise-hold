@@ -1,0 +1,48 @@
+{
+  "fields": [
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "text": "×",
+      "aria": "Close dialog"
+    },
+    {
+      "tag": "INPUT",
+      "id": "quantity",
+      "text": "",
+      "aria": null
+    },
+    {
+      "tag": "SELECT",
+      "id": "duration",
+      "text": "15 minutes30 minutes1 hour2 hours4 hours8 hours",
+      "aria": null
+    },
+    {
+      "tag": "INPUT",
+      "id": "customer",
+      "text": "",
+      "aria": null
+    },
+    {
+      "tag": "INPUT",
+      "id": "operator",
+      "text": "",
+      "aria": null
+    },
+    {
+      "tag": "TEXTAREA",
+      "id": "order-note",
+      "text": "",
+      "aria": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "text": "Hold VALVE-24",
+      "aria": null
+    }
+  ],
+  "created": true,
+  "pass": true
+}

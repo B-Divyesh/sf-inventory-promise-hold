@@ -1,0 +1,7 @@
+{
+  "verificationRequests": [
+    "https://api.sociobot.in/api/v1/products/inventory-promise-hold/verify?license=local-license-fixture"
+  ],
+  "demoReadNonDemoLicense": true,
+  "pass": false
+}

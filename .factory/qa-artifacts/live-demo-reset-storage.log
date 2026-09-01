@@ -1,0 +1,9 @@
+{
+  "storage": {
+    "local": {
+      "stock-promise:operator": "Demo-only operator"
+    },
+    "session": {}
+  },
+  "pass": false
+}

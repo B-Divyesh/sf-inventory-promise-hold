@@ -1,0 +1,47 @@
+{
+  "all_match": true,
+  "resources": [
+    {
+      "path": "/",
+      "bytes": 1733,
+      "sha256": "b22ffaaab8d05b3a1b140034f40f0d0ea35d329f95a438a32df417cb13e18a71",
+      "match": true
+    },
+    {
+      "path": "/assets/index-BPKVpzp1.js",
+      "bytes": 93500,
+      "sha256": "0108e014339b02c10150777723be292fc80b7ab24557a87922101e1eba35b68a",
+      "match": true
+    },
+    {
+      "path": "/assets/index-Bq2a3Z1V.css",
+      "bytes": 21056,
+      "sha256": "1c82578df973b4694f7b08030ddf5080a8cf12f252614f8d8ec563fe6cb1f065",
+      "match": true
+    },
+    {
+      "path": "/assets/stockroom-watch-640.webp",
+      "bytes": 15414,
+      "sha256": "ca5c200e67bc5ec17fd6ba7e578899b2ce9616858d182b4cbdad7f48e058cafc",
+      "match": true
+    },
+    {
+      "path": "/mark.svg",
+      "bytes": 244,
+      "sha256": "2ebdabc53523951d47028fbfb073d1219a3105adf8c145539766002c0d181e7c",
+      "match": true
+    },
+    {
+      "path": "/sw.js",
+      "bytes": 1008,
+      "sha256": "38eed18884fcfa563da5062fb62cbce0b6ca410281ae6f8dd4a675072d73006e",
+      "match": true
+    },
+    {
+      "path": "/404.html",
+      "bytes": 1367,
+      "sha256": "28a692fa3e91ef6cced5bacf46bfca838e76b347930d76b7f9b0d20f26ac03e3",
+      "match": true
+    }
+  ]
+}

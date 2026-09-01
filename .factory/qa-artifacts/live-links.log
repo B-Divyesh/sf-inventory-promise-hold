@@ -1,0 +1,50 @@
+{
+  "results": [
+    {
+      "text": "Skip to promise desk",
+      "href": "https://inventory-promise-hold.sociobot.in/#main",
+      "status": 200
+    },
+    {
+      "text": "Stock Promise",
+      "href": "https://inventory-promise-hold.sociobot.in/",
+      "status": 200
+    },
+    {
+      "text": "Demo",
+      "href": "https://inventory-promise-hold.sociobot.in/demo",
+      "status": 200
+    },
+    {
+      "text": "Privacy",
+      "href": "https://inventory-promise-hold.sociobot.in/privacy",
+      "status": 200
+    },
+    {
+      "text": "Terms",
+      "href": "https://inventory-promise-hold.sociobot.in/terms",
+      "status": 200
+    },
+    {
+      "text": "Skip to promise desk",
+      "href": "https://inventory-promise-hold.sociobot.in/demo#main",
+      "status": 200
+    },
+    {
+      "text": "Skip to content",
+      "href": "https://inventory-promise-hold.sociobot.in/privacy#legal-main",
+      "status": 200
+    },
+    {
+      "text": "privacy@sociobot.in",
+      "href": "mailto:privacy@sociobot.in",
+      "status": "not requested; documented external destination"
+    },
+    {
+      "text": "Skip to content",
+      "href": "https://inventory-promise-hold.sociobot.in/terms#legal-main",
+      "status": 200
+    }
+  ],
+  "dead": []
+}

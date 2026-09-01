@@ -1,0 +1,31 @@
+{
+  "checks": {
+    "health_identity": true,
+    "initial_setup_required": true,
+    "setup": true,
+    "inventory_created": true,
+    "negative_stock_rejected": true,
+    "duplicate_sku_rejected": true,
+    "zero_quantity_rejected": true,
+    "duration_4_rejected": true,
+    "duration_481_rejected": true,
+    "blank_customer_rejected": true,
+    "competing_holds": true,
+    "stock_floor": true,
+    "release": true,
+    "full_and_480": true,
+    "convert": true,
+    "post_convert_counts": true,
+    "csv_quotes": true,
+    "audit_events": true,
+    "database_written": true,
+    "restart_persistence": true
+  },
+  "pass": true,
+  "first_start_log": [
+    "{\"timestamp\":\"2026-09-01T19:56:42.068408Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"configuration ready (PORT defaults to 8080; database and instance identity persist locally)\",\"port\":4189,\"database\":\"/tmp/stock-promise-qa-3tqcwchv/qa.db\",\"database_source\":\"supplied\",\"schema\":\"migrated\",\"instance_identity\":\"generated\",\"auth_mode\":\"local\"},\"target\":\"stock_promise\"}"
+  ],
+  "second_start_log": [
+    "{\"timestamp\":\"2026-09-01T19:56:42.219748Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"configuration ready (PORT defaults to 8080; database and instance identity persist locally)\",\"port\":4189,\"database\":\"/tmp/stock-promise-qa-3tqcwchv/qa.db\",\"database_source\":\"supplied\",\"schema\":\"existing/upgraded\",\"instance_identity\":\"existing\",\"auth_mode\":\"local\"},\"target\":\"stock_promise\"}"
+  ]
+}
