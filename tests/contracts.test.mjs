@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { execFile as execFileCallback } from 'node:child_process';
 import test from 'node:test';
@@ -87,7 +88,8 @@ test('release delegates durable volume provisioning to the factory deployment co
     ...process.env, PATH: `${directory}:${process.env.PATH}`, FACTORY_CONTAINER_DEPLOY_SCRIPT: deploy,
     PERSISTENT_DATA_VERIFY_SCRIPT: verify, RELEASE_CALL_LOG: log, EXPECTED_RELEASE_SHA: head.trim(), ALLOW_DIRTY_RELEASE: '1',
   } });
-  assert.equal(await readFile(log, 'utf8'), 'deploy /data inventory-promise-hold /work/repo Dockerfile 8080\nverify inventory-promise-hold\n');
+  const repository = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '');
+  assert.equal(await readFile(log, 'utf8'), `deploy /data inventory-promise-hold ${repository} Dockerfile 8080\nverify inventory-promise-hold\n`);
 });
 
 test('recorded unavailable checkout is not offered by the product source', async () => {
