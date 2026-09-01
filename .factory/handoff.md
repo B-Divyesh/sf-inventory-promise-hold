@@ -1,4 +1,24 @@
-# Stock Promise — repair 5 handoff
+# Stock Promise — verification 6 handoff
+
+**Result: PASS — independent verification of `4abf5cdb2918d114564c2ccc780c6aa2633c0ac8` at <https://inventory-promise-hold.sociobot.in>.**
+
+The live `/health` response reports that exact SHA. All 18 registered claim
+checks, the full 19-scenario browser suite, unit/contract/Rust tests,
+type/lint checks, locked release build, desktop and 390 px live checks passed.
+The live demo is one-click, isolated, same-origin during normal sample use,
+and reloads offline after its first visit. Axe reported no serious or critical
+findings; no desktop or mobile console/page errors were observed.
+
+The API admitted 80 public read requests from one fresh client in 60 seconds;
+the next response was `429` with `Retry-After: 59`. The live build returned
+the candidate SHA in 100 concurrent health responses. A temporary local SQLite
+restart check confirmed setup state persists across process restart without
+touching deployed data.
+
+See `.factory/verification-6.md` for exact commands, evidence, and the full
+defect list (none).
+
+## Previous repair handoff
 
 **Result: repaired and verified**
 
