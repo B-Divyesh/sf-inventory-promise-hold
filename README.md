@@ -76,6 +76,9 @@ npm run test:e2e
 BUILD_SHA=local-verification cargo build --release --locked
 ```
 
+The test scripts build the Rust server before browser readiness and release
+startup checks, so a clean clone does not spend an assertion timeout compiling.
+
 Claims and their sandbox tests are listed in `.factory/claims.json`. The
 browser suite covers the sample demo, CSV export, mobile layout, keyboard,
 accessibility, service-worker update, offline demo reload, and security

@@ -1,14 +1,12 @@
 import assert from 'node:assert/strict';
-import { chmod, mkdtemp } from 'node:fs/promises';
+import { access, chmod, mkdtemp } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
-import { execFile as execFileCallback, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import test from 'node:test';
 
-const execFile = promisify(execFileCallback);
 const repository = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '');
 const startupRecord = /"message":"configuration ready \(PORT defaults to 8080; database and instance identity persist locally\)"/;
 
@@ -63,13 +61,13 @@ async function waitForExit(child) {
 }
 
 test('release binary emits the configuration record with only PORT', { timeout: 180_000 }, async () => {
-  await execFile('cargo', ['build', '--release', '--locked'], { cwd: repository });
   const port = await unusedPort();
   const directory = await mkdtemp(join(tmpdir(), 'stock-promise-release-'));
   await chmod(directory, 0o777);
   const environment = { PORT: String(port) };
   assert.deepEqual(Object.keys(environment), ['PORT']);
   const binary = join(repository, 'target/release/stock-promise');
+  await access(binary);
   const child = spawn(
     '/usr/bin/setpriv',
     ['--reuid=65534', '--regid=65534', '--clear-groups', binary],

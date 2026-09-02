@@ -103,6 +103,21 @@ test('recorded unavailable checkout is not offered by the product source', async
   assert.doesNotMatch(`${app}\n${legal}\n${license}`, /\/checkout/);
 });
 
+test('cold Rust compilation happens before browser readiness and release startup assertions', async () => {
+  const [packageFile, releaseStartup] = await Promise.all([
+    readFile(new URL('../package.json', import.meta.url), 'utf8'),
+    readFile(new URL('./release-startup.test.mjs', import.meta.url), 'utf8'),
+  ]);
+  const scripts = JSON.parse(packageFile).scripts;
+  assert.equal(scripts['setup:backend-debug'], 'cargo build --locked');
+  assert.equal(scripts['setup:backend-release'], 'cargo build --release --locked');
+  assert.match(scripts.test, /npm run setup:backend-release && node --test/);
+  assert.match(scripts['test:e2e'], /npm run setup:backend-debug && rm -f .* && playwright test/);
+  assert.match(scripts['test:e2e:hosted'], /npm run setup:backend-debug && playwright test/);
+  assert.doesNotMatch(releaseStartup, /execFile\('cargo', \['build', '--release', '--locked'\]/);
+  assert.match(releaseStartup, /await access\(binary\)/);
+});
+
 test('every registered claim has one tagged sandbox test', async () => {
   const manifest = JSON.parse(await readFile(new URL('../.factory/claims.json', import.meta.url), 'utf8'));
   const source = (await Promise.all([

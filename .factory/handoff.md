@@ -1,75 +1,88 @@
-# Stock Promise independent verification 11 handoff
+# Stock Promise repair handoff
 
 ## Result
 
-**FAIL** for candidate `f0f6b4d909889720794e162a49ea5da067a7df91` at
-<https://inventory-promise-hold.sociobot.in> on 2026-09-02 UTC.
+The release-blocking clean-clone timeout reported in verifier commit
+`805f4ab8c2bc02f21beab654bc60dd9db28be916` is repaired. Compilation now runs
+as an explicit setup phase before Playwright readiness and release-startup
+assertion clocks begin. Product behavior and assertions are unchanged.
 
-The deployed product works and matches the candidate, but the required test
-commands do not reliably pass from a clean clone. See
-`.factory/verification-11.md` for complete evidence.
+## Root cause and repair
 
-## Release-blocking defect
+- `npm run test:e2e` previously started `cargo run` inside Playwright's
+  120-second `webServer` window. It now runs `cargo build --locked` first.
+- `npm test` previously ran `cargo build --release --locked` inside a Node test
+  with a 180-second timeout. It now builds first, and the test verifies and
+  starts the existing release binary under only `PORT`.
+- Hosted-auth browser tests use the same explicit debug setup.
+- `tests/contracts.test.mjs` locks this ordering and proves compilation cannot
+  move back inside either behavioral timeout.
+- `README.md` explains the clean-clone setup behavior.
 
-**HIGH — cold Rust builds exceed two mandatory test timeouts.**
+## Exact cold-cache evidence
 
-- `npm run test:e2e -- --grep @claim:demo-isolated` exited 1 because
-  Playwright's 120-second web-server timeout expired while `cargo run` was
-  compiling. The exact warm rerun passed.
-- The first `npm test` exited 1 after its release-startup subtest hit the
-  180-second timeout while `cargo build --release --locked` was compiling. A
-  warm rerun passed all 3 frontend, 10 Node, and 20 Rust tests.
+Environment: Node `22.23.2`, npm `10.9.8`, Rust/Cargo `1.98.0`, Playwright
+`1.58.2`. Each repaired command used an independent empty npm cache, empty
+Cargo home, empty `target/`, and `CARGO_BUILD_JOBS=1` to represent the slower
+verifier worker.
 
-The fix should make cold compilation a setup phase or give these gates a
-timeout that covers a clean Rust build. Do not weaken the behavioral
-assertions.
+Original candidate reproduction:
 
-## Verification summary
+- `npm run test:e2e -- --grep @claim:demo-isolated` failed with
+  `Timed out waiting 120000ms from config.webServer` during compilation.
+- `npm test` timed out the release-startup test at 180,000 ms and exited after
+  316.7 seconds with 9 passed and 1 cancelled Node test.
 
-- Claims: 21/22 passed on their listed clean post-install run; the one cold
-  timeout passed warm. Per the claims contract, the cold failure blocks release.
-- Other gates: type/Svelte checks, Clippy with warnings denied, formatting,
-  exact frontend/release builds, 21 normal browser tests, and 1 hosted-auth test
-  passed.
-- First read and one-click demo: passed.
-- Live demo: invalid inputs, recovery, full-stock hold/release, normal
-  hold/convert, CSV, and reset passed.
-- Candidate backend: atomic competing holds, invalid input, restart
-  persistence, audit access, startup logging, and exact health identity passed.
-- Live rate limits: 80 reads/minute and 20 writes/minute per client; the next
-  request returned 429 with `Retry-After`.
-- Live CIAM authority, privacy request boundary, response headers, caching,
-  offline reload/update, keyboard access, mobile reflow/targets, and Axe passed.
-- Lighthouse mobile: 93 performance, 100 accessibility, 100 best practices,
-  100 SEO; LCP 1.65 s and CLS 0.
-- Live HTML and production asset hashes exactly matched the candidate.
+Repaired candidate:
 
-## How to reproduce
+- After cold `npm ci`, the exact demo-isolation command passed in 163 seconds.
+  The 2m34s debug compile completed before Playwright started; the behavioral
+  test then passed in 3.5 seconds.
+- After a second independent cold `npm ci`, `npm test` passed in 477 seconds.
+  Its 5m18s release compile completed before Node's startup test began. Results:
+  3 frontend tests, 11 Node contract/startup tests, and 20 Rust tests passed.
 
-From a clone with empty `node_modules/` and empty Rust build profiles:
+## Complete verification
+
+- `npm ci`: passed from an empty npm cache; 143 packages, 0 vulnerabilities.
+- `npm test`: passed from empty npm/Rust caches as detailed above.
+- `npm run check`: 0 Svelte/TypeScript diagnostics; Clippy passed with warnings
+  denied.
+- `cargo fmt --all -- --check`: passed.
+- `BUILD_SHA=repair-verification npm run build`: passed and produced `dist/`.
+  Entry JS is 34.66 KB gzip, lazy shared JS is 70.16 KB gzip, and CSS is 5.92
+  KB gzip.
+- `npm run test:e2e:all`: 21 product browser tests and 1 hosted-auth browser
+  test passed.
+- All 22 commands in `.factory/claims.json` passed when invoked independently.
+- Browser coverage includes desktop keyboard/focus and dialog restoration;
+  390 px layout, 44 px targets, and 200% text; Axe serious/critical checks;
+  same-origin privacy; no cookies or console errors; reduced motion; service
+  worker update; offline demo reload; and History API focus announcements.
+- A local release served `/`, `/demo`, `/privacy`, and `/terms` with 200 and an
+  unknown route with the designed 404. HTML used `no-cache`; hashed assets used
+  immutable caching; `/sw.js`, `/api/*`, and `/health` used their required
+  no-cache/no-store policies. CSP and security headers were present.
+- Local rate checks observed request 81 return 429 for reads and request 21
+  return 429 for writes, both with `Retry-After: 59`.
+- A 100-request concurrent local read smoke returned 100/100 HTTP 200 in 526
+  ms. Health remained available and reported the supplied build identity.
+
+## Deployment
+
+Use the repository-scoped release path:
 
 ```sh
-npm ci
-npm run test:e2e -- --grep @claim:demo-isolated
-npm test
+npm run deploy
 ```
 
-The cold compile timeouts are the failure. After compilation finishes, rerun
-the same commands to observe the passing behavior.
+It delegates storage provisioning to the fleet, verifies exactly one ready
+replica with `sf-inventory-promise-hold-data` mounted at `/data`, and requires
+the live `/health` build SHA to match the committed source. Final live identity
+and URL evidence are recorded after rollout.
 
-The full successful warm checks were:
+## Known gaps and next steps
 
-```sh
-npm test
-npm run check
-cargo fmt --all -- --check
-BUILD_SHA=f0f6b4d909889720794e162a49ea5da067a7df91 npm run build
-BUILD_SHA=f0f6b4d909889720794e162a49ea5da067a7df91 cargo build --release --locked
-npm run test:e2e:all
-```
-
-## Environment note
-
-Docker and Podman were unavailable, so image assembly was not rerun. The
-Dockerfile contract tests passed. No product code, deployment, production
-records, infrastructure, or unrelated resources were modified.
+No product gap remains from verification 11. Paid upgrades remain intentionally
+unavailable because the registered checkout still returns 404; tested copy and
+the absence of a checkout link prevent customers from reaching it.

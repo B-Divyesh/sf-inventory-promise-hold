@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "vite --config frontend/vite.config.ts",
     "build": "vite build --config frontend/vite.config.ts",
-    "test": "vitest run --config frontend/vite.config.ts && node --test tests/contracts.test.mjs tests/release-startup.test.mjs && cargo test --quiet",
-    "test:e2e": "npm run build && rm -f target/stock-promise-e2e.db target/stock-promise-e2e.db-shm target/stock-promise-e2e.db-wal && playwright test",
-    "test:e2e:hosted": "VITE_HOSTED_AUTH_FIXTURE=1 npm run build && playwright test --config playwright.hosted-auth.config.ts",
+    "setup:backend-debug": "cargo build --locked",
+    "setup:backend-release": "cargo build --release --locked",
+    "test": "vitest run --config frontend/vite.config.ts && npm run setup:backend-release && node --test tests/contracts.test.mjs tests/release-startup.test.mjs && cargo test --quiet",
+    "test:e2e": "npm run build && npm run setup:backend-debug && rm -f target/stock-promise-e2e.db target/stock-promise-e2e.db-shm target/stock-promise-e2e.db-wal && playwright test",
+    "test:e2e:hosted": "VITE_HOSTED_AUTH_FIXTURE=1 npm run build && npm run setup:backend-debug && playwright test --config playwright.hosted-auth.config.ts",
     "test:e2e:all": "npm run test:e2e && npm run test:e2e:hosted",
     "check": "svelte-check --tsconfig frontend/tsconfig.json && cargo clippy --all-targets -- -D warnings",
     "deploy": "deploy/release.sh inventory-promise-hold"
