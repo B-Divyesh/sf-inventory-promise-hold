@@ -1,13 +1,13 @@
 # Timed inventory holds for parallel orders
 
-Stock Promise is a single-location hold desk for distributors and resellers who
+Stock Promise is a single-location inventory hold workspace for distributors and resellers who
 take orders in parallel. Staff create a timed hold before scarce stock is
-promised twice. Supervisors maintain stock, convert or release holds, review
-the append-only audit record, and export outcomes.
+promised twice. Supervisors maintain stock, resolve holds, review a record of
+past changes that cannot be edited, and export outcomes.
 
 Live product: <https://inventory-promise-hold.sociobot.in>
 
-## Try it first
+## Try the sample stockroom
 
 Open <https://inventory-promise-hold.sociobot.in/?demo=1> or choose **Try it with
 sample data**. The demo starts with three realistic SKUs and an active hold. It is
@@ -17,7 +17,7 @@ key and restores the shipped sample.
 
 ## Access and data
 
-The hosted live desk uses Sociobot Microsoft Entra External ID. Sign-in roles
+Hosted inventory holds use Sociobot Microsoft Entra External ID. Sign-in roles
 set what each person can do:
 
 - `staff` can view live availability and create holds.
@@ -62,9 +62,9 @@ AUTH_MODE=local DATABASE_PATH=./stock-promise.db FRONTEND_DIR=dist cargo run
 ```
 
 `AUTH_MODE=local` is only for local development and test coverage. Production
-defaults to CIAM with the shared Sociobot tenant. The container starts with
-only `PORT` set (default `8080`), stores SQLite at `/data/stock-promise.db`,
-and uses a single replica. Optional production overrides are
+uses the shared Sociobot customer sign-in service by default. For deployment,
+set `PORT` to the listening port and mount persistent storage at `/data`. Run
+one app replica so SQLite has one writer. Optional production overrides are
 `ENTRA_TENANT_ID`, `ENTRA_TENANT_SUBDOMAIN`, `ENTRA_CLIENT_ID`,
 `DATABASE_PATH`, `FRONTEND_DIR`, `BUILD_SHA`, and `RUST_LOG`.
 
@@ -91,9 +91,9 @@ headers.
 npm run deploy
 ```
 
-Deployment keeps the SQLite database in `/data` and runs one app replica. The release command refuses a dirty tree, checks the
-mounted single-replica topology, and verifies `/health` returns the committed
-build SHA.
+Run this command from a clean commit. The fleet configuration must mount
+`/data` and keep one app replica. After deployment, confirm that `/health`
+reports the commit you released.
 
 ## License
 

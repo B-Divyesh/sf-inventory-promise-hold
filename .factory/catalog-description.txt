@@ -1,1 +1,1 @@
-Prevent duplicate stock promises with timed team holds for small distributors and resellers.
+Prevent duplicate stock promises with timed team holds for one distributor location.

@@ -14,10 +14,10 @@ test('sets up a location and completes the hold lifecycle on a phone', async ({ 
   expect(landingAccessibility.violations.filter((item) => ['serious', 'critical'].includes(item.impact || ''))).toEqual([]);
 
   await expect(page.getByRole('heading', { name: 'Hold scarce stock before it is promised twice.' })).toBeVisible();
-  await page.getByRole('button', { name: 'Open the live desk' }).click();
+  await page.getByRole('button', { name: 'Open inventory holds' }).click();
   await page.getByLabel('Location name').fill('Test counter');
   await page.getByLabel(/Supervisor PIN/).fill('246810');
-  await page.getByRole('button', { name: 'Open the promise desk' }).click();
+  await page.getByRole('button', { name: 'Open inventory holds' }).click();
   await expect(page.getByRole('heading', { name: 'No stock is listed yet' })).toBeVisible();
 
   const anonymousBootstrap = await page.request.get('/api/bootstrap');
@@ -60,7 +60,7 @@ test('sets up a location and completes the hold lifecycle on a phone', async ({ 
   expect(legalTargets.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
 
   await page.getByRole('button', { name: 'Lock supervisor' }).click();
-  await expect(page.getByRole('heading', { name: 'Open the promise desk.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Open inventory holds.' })).toBeVisible();
   await expect(page.getByText('Northside Cafe')).toHaveCount(0);
   await expect(consoleErrors).toEqual([]);
 });
@@ -77,7 +77,7 @@ test('legal pages stay semantic and reachable', async ({ page }) => {
     const accessibility = await new AxeBuilder({ page }).analyze();
     expect(accessibility.violations.filter((item) => ['serious', 'critical'].includes(item.impact || ''))).toEqual([]);
   }
-  await page.getByRole('button', { name: 'Return home' }).click();
+  await page.getByRole('link', { name: 'Return home' }).click();
   await expect(page).toHaveURL('/');
 });
 
@@ -103,6 +103,7 @@ test('public routes keep one route-specific canonical and description', async ({
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
   await expect(page.locator('header .wordmark')).toBeVisible();
   await expect(page.locator('footer')).toBeVisible();
+  await expect(page.locator('footer')).toContainText(/build (?:dev|[0-9a-f]{12})/);
   await expect(page.locator('link[rel="icon"]')).toHaveCount(1);
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveCount(1);
   const notFoundAccessibility = await new AxeBuilder({ page }).analyze();
@@ -139,15 +140,15 @@ test('desktop keyboard access gate recovers from an invalid PIN', async ({ brows
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/#main$/);
-  await page.getByRole('button', { name: 'Open the live desk' }).click();
-  await expect(page.getByRole('heading', { name: 'Open the promise desk.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open inventory holds' }).click();
+  await expect(page.getByRole('heading', { name: 'Open inventory holds.' })).toBeVisible();
 
   await page.getByLabel('Supervisor PIN').fill('000000');
-  await page.getByRole('button', { name: 'Open promise desk' }).click();
+  await page.getByRole('button', { name: 'Open inventory holds' }).click();
   await expect(page.getByRole('alert')).toContainText('not correct');
   await page.getByLabel('Supervisor PIN').fill('246810');
-  await page.getByRole('button', { name: 'Open promise desk' }).click();
-  await expect(page.getByRole('heading', { name: 'Promise desk' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open inventory holds' }).click();
+  await expect(page.getByRole('heading', { name: 'Manage inventory holds' })).toBeVisible();
   const deskAccessibility = await new AxeBuilder({ page }).analyze();
   expect(deskAccessibility.violations.filter((item) => ['serious', 'critical'].includes(item.impact || ''))).toEqual([]);
   await context.close();
@@ -210,7 +211,7 @@ test('390px reduced-motion shell updates and explains an offline reload', async 
   await context.setOffline(true);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.locator('.demo-banner')).toContainText(/Demo.*sample data/i);
-  await expect(page.getByRole('heading', { name: 'Promise desk' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Manage sample inventory holds' })).toBeVisible();
   await context.close();
 });
 
@@ -277,15 +278,30 @@ test('@claim:demo-isolated demo storage and requests never cross into the real w
   const page = await context.newPage();
   const productApiRequests: string[] = [];
   const licenseRequests: string[] = [];
+  let markVerificationStarted = () => {};
+  const verificationStarted = new Promise<void>((resolve) => { markVerificationStarted = resolve; });
+  let releaseVerification = () => {};
+  const verificationReleased = new Promise<void>((resolve) => { releaseVerification = resolve; });
   page.on('request', (request) => {
     if (request.url().startsWith('http://127.0.0.1:4178/api/')) productApiRequests.push(`${request.method()} ${request.url()}`);
   });
   await page.route('https://api.sociobot.in/api/v1/products/inventory-promise-hold/verify?license=*', async (route) => {
     licenseRequests.push(route.request().url());
-    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ valid: true, reason: 'ok' }) });
+    markVerificationStarted();
+    await verificationReleased;
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ valid: false, reason: 'revoked' }) }).catch(() => {});
   });
-  await page.goto('/demo', { waitUntil: 'networkidle' });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await verificationStarted;
+  const originalRealState = await page.evaluate(() => ({
+    local: Object.fromEntries(Object.keys(localStorage).sort().map((key) => [key, localStorage.getItem(key)])),
+    session: Object.fromEntries(Object.keys(sessionStorage).sort().map((key) => [key, sessionStorage.getItem(key)])),
+  }));
+  await page.getByRole('link', { name: 'Try it with sample data' }).click();
+  await expect(page).toHaveURL('/?demo=1');
   await expect(page.getByText('Demo — sample data, nothing is saved.')).toBeVisible();
+  releaseVerification();
+  await page.waitForTimeout(100);
   await page.getByRole('button', { name: 'Stock & settings' }).click();
   await expect(page.getByRole('heading', { name: 'Pro reminders & profiles' })).toBeVisible();
   await page.getByRole('button', { name: 'Import CSV' }).click();
@@ -296,7 +312,7 @@ test('@claim:demo-isolated demo storage and requests never cross into the real w
   });
   await expect(page.getByText('1 item imported.')).toBeVisible();
   await page.getByRole('button', { name: 'Done' }).click();
-  await page.getByRole('button', { name: 'Live desk' }).click();
+  await page.getByRole('button', { name: 'Inventory holds' }).click();
   await page.getByRole('button', { name: 'Create hold' }).first().click();
   await expect(page.getByLabel('Your name')).toHaveValue('');
   await page.getByLabel('Quantity').fill('1');
@@ -309,14 +325,7 @@ test('@claim:demo-isolated demo storage and requests never cross into the real w
     local: Object.fromEntries(Object.keys(localStorage).sort().map((key) => [key, localStorage.getItem(key)])),
     session: Object.fromEntries(Object.keys(sessionStorage).sort().map((key) => [key, sessionStorage.getItem(key)])),
   }));
-  expect(beforeReset.local).toEqual({
-    'sb_license:inventory-promise-hold': 'real-cached-license',
-    'sb_license:inventory-promise-hold:verdict': JSON.stringify({ valid: true, checked: 1 }),
-    'stock-promise:operator': 'Real workspace operator',
-    'stock-promise:profiles': JSON.stringify(['Real profile']),
-    'stock-promise:reminders': 'true',
-    'stock-promise:supervisor-name': 'Real supervisor',
-  });
+  expect(beforeReset.local).toEqual(originalRealState.local);
   expect(beforeReset.session['stock-promise:supervisor-session']).toBe('real-session-token');
   expect(beforeReset.session['demo:stock-promise:operator']).toBe('Demo staff');
   expect(beforeReset.session['demo:stock-promise:state']).toContain('Demo counter order 102');
@@ -327,10 +336,10 @@ test('@claim:demo-isolated demo storage and requests never cross into the real w
     local: Object.fromEntries(Object.keys(localStorage).sort().map((key) => [key, localStorage.getItem(key)])),
     session: Object.fromEntries(Object.keys(sessionStorage).sort().map((key) => [key, sessionStorage.getItem(key)])),
   }));
-  expect(afterReset.local).toEqual(beforeReset.local);
+  expect(afterReset.local).toEqual(originalRealState.local);
   expect(afterReset.session).toEqual({ 'stock-promise:supervisor-session': 'real-session-token' });
   expect(productApiRequests).toEqual([]);
-  expect(licenseRequests).toEqual([]);
+  expect(licenseRequests).toEqual(['https://api.sociobot.in/api/v1/products/inventory-promise-hold/verify?license=real-cached-license']);
   await context.close();
 });
 
@@ -338,6 +347,8 @@ test('@claim:demo-seed-reset demo starts with three SKUs and one hold, then Rese
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   await page.goto('/', { waitUntil: 'networkidle' });
+  await expect(page.locator('.header-status')).not.toContainText('Shared live');
+  await expect(page.locator('.connection')).toHaveCount(0);
   await page.getByRole('link', { name: 'Try it with sample data' }).click();
   await expect(page).toHaveURL('/?demo=1');
   await expect(page.getByText('Demo — sample data, nothing is saved.')).toBeVisible();
@@ -396,19 +407,19 @@ test('@claim:browser-storage live access and preferences use their documented br
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ valid: true, reason: 'ok' }) });
   });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open the live desk' }).click();
+  await page.getByRole('button', { name: 'Open inventory holds' }).click();
   await expect(page.getByLabel(/Supervisor PIN/)).toBeVisible();
   const needsSetup = Boolean(await page.getByLabel('Location name').count());
 
   if (needsSetup) {
     await page.getByLabel('Location name').fill('Browser storage test');
     await page.getByLabel(/Supervisor PIN/).fill('246810');
-    await page.getByRole('button', { name: 'Open the promise desk' }).click();
+    await page.getByRole('button', { name: 'Open inventory holds' }).click();
   } else {
     await page.getByLabel('Supervisor PIN').fill('246810');
-    await page.getByRole('button', { name: 'Open promise desk' }).click();
+    await page.getByRole('button', { name: 'Open inventory holds' }).click();
   }
-  await expect(page.getByRole('heading', { name: 'Promise desk' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Manage inventory holds' })).toBeVisible();
 
   if (needsSetup) {
     const addFirst = page.getByRole('button', { name: 'Add first item' });
@@ -473,7 +484,7 @@ test('@claim:offline-demo sample opens offline after first visit', async ({ brow
   await context.setOffline(true);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.getByText('Demo — sample data, nothing is saved.')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Promise desk' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Manage sample inventory holds' })).toBeVisible();
   await context.close();
 });
 
@@ -516,7 +527,7 @@ test('@claim:pro-profiles-reminders a verified license saves profiles and sends 
   await expect(page.getByRole('button', { name: 'Reminders enabled' })).toBeVisible();
   expect(await page.evaluate(() => sessionStorage.getItem('demo:stock-promise:reminders'))).toBe('true');
   await expect.poll(() => page.evaluate(() => (window as Window & { __stockPromiseNotifications?: unknown[] }).__stockPromiseNotifications?.length || 0)).toBe(1);
-  await page.getByRole('button', { name: 'Live desk' }).click();
+  await page.getByRole('button', { name: 'Inventory holds' }).click();
   await page.getByRole('button', { name: 'Create hold' }).first().click();
   await page.getByRole('button', { name: 'Mina' }).click();
   await expect(page.getByLabel('Your name')).toHaveValue('Mina');

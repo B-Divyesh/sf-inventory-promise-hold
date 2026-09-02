@@ -132,13 +132,22 @@ test('reviewed visitor copy uses one plain term for each concept', async () => {
     readFile(new URL('../frontend/public/404.html', import.meta.url), 'utf8'),
   ]);
   assert.match(readme, /^# Timed inventory holds for parallel orders$/m);
+  assert.match(readme, /^## Try the sample stockroom$/m);
   assert.match(readme, /Sign-in roles\s+set what each person can do:/);
   assert.match(readme, /as the sign-in\s+return address\./);
-  assert.match(readme, /Deployment keeps the SQLite database in `\/data` and runs one app replica\./);
+  assert.match(readme, /Production\s+uses the shared Sociobot customer sign-in service by default\./);
   assert.doesNotMatch(`${readme}\n${app}\n${legal}`, /audit (?:trail|ledger|events?)/i);
-  assert.doesNotMatch(readme, /CIAM app roles|work-order deployment|SPA redirect URI/);
+  assert.doesNotMatch(readme, /CIAM|work-order deployment|SPA redirect URI|append-only audit record/);
   assert.match(legal, /Do not interfere with normal service use or present inaccurate stock availability to customers\./);
   assert.doesNotMatch(legal, /bypass access controls/);
   assert.match(app, /Open a sample stockroom\./);
+  assert.match(app, /Open inventory holds/);
+  assert.match(app, /Manage sample inventory holds/);
+  assert.match(app, /Limits and data retention/);
+  assert.match(app, /Pro profiles and reminders/);
+  assert.match(app, />Leave demo<\/a>/);
+  assert.doesNotMatch(app, /Shared live|Open the live desk|Promise desk|Live desk|Optional Pro convenience|Start for real/);
+  assert.match(legal, /<a class="text-button" href="\/"/);
   assert.match(notFound, /<h1>Page not found<\/h1>/);
+  assert.match(notFound, /build __BUILD_SHA__/);
 });

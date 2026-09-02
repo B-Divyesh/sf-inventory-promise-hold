@@ -4,7 +4,7 @@
     "claim": "The demo never reads or writes live stockroom, operator, session, profile, reminder, or license state.",
     "where": "landing page, demo banner, README",
     "test": "npm run test:e2e -- --grep @claim:demo-isolated",
-    "sandbox": "browser preloads hostile live workspace and license state, opens /demo, creates a hold, opens settings, and resets; asserts no product or license request, no real-key change, and no demo key remains after reset"
+    "sandbox": "browser preloads hostile live state, starts a delayed live license check on /, enters /?demo=1 in one click, releases the response, uses and resets the demo, and asserts every real key is byte-for-byte unchanged"
   },
   {
     "id": "demo-seed-reset",
@@ -33,6 +33,20 @@
     "where": "live access screen, privacy page, README",
     "test": "cargo test claim_hosted_access_uses_sociobot_ciam_by_default --quiet",
     "sandbox": "default production auth configuration asserts CIAM mode, the Sociobot customer tenant, and the registered application client"
+  },
+  {
+    "id": "first-supervisor-setup",
+    "claim": "The first supervisor creates the location, and later setup attempts cannot replace it.",
+    "where": "README setup guidance, first-run screen",
+    "test": "cargo test claim_first_supervisor_creates_the_location_once --quiet",
+    "sandbox": "fresh in-memory app starts without a location, accepts the first supervisor setup, returns a supervisor session, and rejects a second setup"
+  },
+  {
+    "id": "shared-durable-storage",
+    "claim": "Inventory, holds, outcomes, and the audit record persist in the hosted database so coworkers see the same stock.",
+    "where": "privacy page, README",
+    "test": "cargo test claim_shared_durable_storage_survives_sessions_and_restart --quiet",
+    "sandbox": "fresh file-backed app creates inventory and a hold in one supervisor session, observes both from a second session, reopens the database, and confirms the location, stock, hold, and audit record remain"
   },
   {
     "id": "csv-export",

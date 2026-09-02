@@ -11,7 +11,7 @@ Demo stock, operator names, profiles, reminders, and license state are stored
 only in the browser session under `demo:stock-promise:*`. The demo never reads
 or writes live workspace keys. The persistent banner says **Demo — sample data,
 nothing is saved**. **Reset demo** clears every demo key and restores the
-shipped sample. **Start for real** leaves the demo and discards the demo
+shipped sample. **Leave demo** returns home and discards the demo
 namespace.
 
 The sample shell is available offline after the first visit. Live stock remains

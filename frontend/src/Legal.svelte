@@ -38,6 +38,6 @@
     <h2>Fair use</h2>
     <p>You may use the service for lawful inventory coordination. Do not interfere with normal service use or present inaccurate stock availability to customers.</p>
   {/if}
-  <button class="text-button" onclick={() => navigate('/')}>Return home</button>
+  <a class="text-button" href="/" onclick={(event) => { event.preventDefault(); navigate('/'); }}>Return home</a>
 </main>
 <footer class="site-footer legal-footer"><span>Timed shared holds for one location.</span><nav aria-label="Legal"><a href="/privacy" onclick={(event) => { event.preventDefault(); navigate('/privacy'); }}>Privacy</a><a href="/terms" onclick={(event) => { event.preventDefault(); navigate('/terms'); }}>Terms</a></nav><span>Built by Param Factory · build {buildId.slice(0, 12)}</span></footer>

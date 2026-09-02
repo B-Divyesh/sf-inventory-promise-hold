@@ -29,7 +29,12 @@ export function storeLicense(token: string, demo = false): void {
   storage.removeItem(verdictKey);
 }
 
-export async function checkLicense(force = false, demo = false): Promise<LicenseState> {
+export interface LicenseCheckOptions {
+  signal?: AbortSignal;
+  isCurrent?: () => boolean;
+}
+
+export async function checkLicense(force = false, demo = false, options: LicenseCheckOptions = {}): Promise<LicenseState> {
   const { storage, key, verdictKey } = licenseStore(demo);
   const token = storage.getItem(key);
   if (!token) return { unlocked: false, notice: '', token: null };
@@ -43,11 +48,19 @@ export async function checkLicense(force = false, demo = false): Promise<License
     return { unlocked: cached.valid, notice: cached.valid ? '' : 'License no longer active.', token };
   }
   try {
-    const response = await fetch(`https://api.sociobot.in/api/v1/products/${productSlug}/verify?license=${encodeURIComponent(token)}`);
+    const response = await fetch(`https://api.sociobot.in/api/v1/products/${productSlug}/verify?license=${encodeURIComponent(token)}`, {
+      signal: options.signal,
+    });
     const verdict = await response.json() as { valid: boolean };
+    if (options.signal?.aborted || (options.isCurrent && !options.isCurrent())) {
+      return { unlocked: false, notice: '', token: null };
+    }
     storage.setItem(verdictKey, JSON.stringify({ valid: verdict.valid, checked: Date.now() }));
     return { unlocked: verdict.valid, notice: verdict.valid ? '' : 'License no longer active.', token };
-  } catch {
+  } catch (error) {
+    if (options.signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
+      return { unlocked: false, notice: '', token: null };
+    }
     return { unlocked: cached?.valid ?? false, notice: 'License check will retry when you are online.', token };
   }
 }

@@ -48,6 +48,7 @@
   const buildId = import.meta.env.VITE_BUILD_SHA || 'dev';
   const demoPrefix = 'demo:stock-promise:';
   const demoKey = `${demoPrefix}state`;
+  let licenseCheckController: AbortController | null = null;
 
   $: filteredInventory = (data?.inventory || []).filter((item) =>
     `${item.sku} ${item.name}`.toLowerCase().includes(query.trim().toLowerCase())
@@ -60,7 +61,7 @@
     applyRouteMetadata(path);
     hydrateBrowserPreferences();
     captureLicense(demo);
-    checkLicense(false, demo).then((value) => license = value);
+    runLicenseCheck(false);
     if (demo) load();
     else if (path === '/auth/callback') {
       path = '/'; landing = false; prepareLive();
@@ -87,6 +88,7 @@
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('popstate', handlePopState);
+      licenseCheckController?.abort();
     };
   });
 
@@ -102,11 +104,10 @@
     landing = next === '/';
     if (wasDemo && !demo) clearDemoStorage();
     if (wasDemo !== demo) {
+      licenseCheckController?.abort();
       hydrateBrowserPreferences();
       license = { unlocked: false, notice: '', token: null };
-      checkLicense(false, demo).then((value) => {
-        if (demo === (next === '/demo')) license = value;
-      });
+      runLicenseCheck(false);
     }
     applyRouteMetadata(next);
     if (demo) load();
@@ -139,6 +140,19 @@
   function startLive() {
     landing = false;
     prepareLive();
+  }
+
+  function runLicenseCheck(force: boolean) {
+    licenseCheckController?.abort();
+    const controller = new AbortController();
+    const namespaceIsDemo = demo;
+    licenseCheckController = controller;
+    checkLicense(force, namespaceIsDemo, {
+      signal: controller.signal,
+      isCurrent: () => !controller.signal.aborted && demo === namespaceIsDemo,
+    }).then((value) => {
+      if (!controller.signal.aborted && demo === namespaceIsDemo) license = value;
+    });
   }
 
   function preferenceStorage(): Storage {
@@ -298,7 +312,7 @@
     if (usesCiam()) { await signOut(); return; }
     try { await request('/api/session', { method: 'DELETE' }, 'required'); } catch { /* local lock still applies */ }
     setSession(null); supervisor = false; auditEntries = []; data = null; accessRequired = true;
-    announcement = 'Promise desk locked.';
+    announcement = 'Inventory holds locked.';
   }
 
   async function saveInventory(event: SubmitEvent) {
@@ -436,7 +450,14 @@
     const value = String(new FormData(event.currentTarget as HTMLFormElement).get('license') || '');
     if (!value.trim()) return;
     storeLicense(value, demo); license = { unlocked: true, notice: 'Checking license…', token: value };
-    license = await checkLicense(true, demo);
+    licenseCheckController?.abort();
+    const controller = new AbortController();
+    const namespaceIsDemo = demo;
+    licenseCheckController = controller;
+    license = await checkLicense(true, namespaceIsDemo, {
+      signal: controller.signal,
+      isCurrent: () => !controller.signal.aborted && demo === namespaceIsDemo,
+    });
     announcement = license.unlocked ? 'Stock Promise Pro unlocked.' : license.notice;
   }
 
@@ -512,7 +533,7 @@
 {#if path === '/privacy' || path === '/terms'}
   <Legal kind={path === '/privacy' ? 'privacy' : 'terms'} {navigate} />
 {:else}
-  <a class="skip-link" href="#main">Skip to promise desk</a>
+  <a class="skip-link" href="#main">Skip to inventory holds</a>
   <header class="app-header">
     <a class="wordmark" href="/" onclick={(event) => { event.preventDefault(); navigate('/'); }}>
       <img src="/mark.svg" alt="" width="38" height="38" />
@@ -525,8 +546,6 @@
     <div class="header-status">
       {#if demo}
         <span class="sample-data-status">Sample data</span>
-      {:else}
-        <span class:offline={!online} class="connection"><i></i>{online ? 'Shared live' : 'Offline'}</span>
       {/if}
       {#if data && !data.setup_required && !demo}
         <button class="quiet-button header-action" aria-label={usesCiam() ? 'Sign out' : supervisor ? 'Lock supervisor' : 'Supervisor unlock'} onclick={() => usesCiam() || supervisor ? lockSupervisor() : openModal('unlock')}>
@@ -538,9 +557,9 @@
   </header>
 
   {#if !online}<div class="offline-banner" role="status">You’re offline. Current figures may be stale; new promises are paused until the shared server reconnects.</div>{/if}
-  {#if demo}<div class="demo-banner" role="status"><span><strong>Demo</strong> — sample data, nothing is saved.</span><button class="text-button" onclick={resetDemo}>Reset demo</button><a class="text-button" href="/" onclick={(event) => { event.preventDefault(); navigate('/'); }}>Start for real</a></div>{/if}
+  {#if demo}<div class="demo-banner" role="status"><span><strong>Demo</strong> — sample data, nothing is saved.</span><button class="text-button" onclick={resetDemo}>Reset demo</button><a class="text-button" href="/" onclick={(event) => { event.preventDefault(); navigate('/'); }}>Leave demo</a></div>{/if}
   {#if path === '/404'}
-    <main id="main" class="center-state"><p class="eyebrow">404</p><h1>Page not found</h1><p>Use the live desk or the sample stockroom to continue.</p><a class="primary-button" href="/" onclick={(event) => { event.preventDefault(); navigate('/'); }}>Return home</a></main>
+    <main id="main" class="center-state"><p class="eyebrow">404</p><h1>Page not found</h1><p>Open inventory holds or the sample stockroom to continue.</p><a class="primary-button" href="/" onclick={(event) => { event.preventDefault(); navigate('/'); }}>Return home</a></main>
   {:else if landing}
     <main id="main" class="landing-page">
       <section class="landing-hero">
@@ -550,13 +569,13 @@
           <p>For distributors and resellers taking orders in parallel, Stock Promise shows a timed team hold before stock is promised.</p>
           <div class="landing-actions"><a class="primary-button" href="/?demo=1" onclick={(event) => { event.preventDefault(); navigate('/?demo=1'); }}>Try it with sample data</a><span>Open a sample stockroom.</span></div>
           <div class="plain-facts"><span>Timed holds expire automatically.</span><span>The sample never changes a live stockroom.</span><span>New Pro purchases are temporarily unavailable.</span></div>
-          <button class="secondary-button" onclick={startLive}>Open the live desk</button>
+          <button class="secondary-button" onclick={startLive}>Open inventory holds</button>
         </div>
         <picture><source media="(max-width: 700px)" srcset="/assets/stockroom-watch-640.webp" /><img src="/assets/stockroom-watch-1536.webp" width="1536" height="1024" alt="An orderly stockroom aisle with a small carton group under a warm work light" fetchpriority="high" decoding="async" /></picture>
       </section>
       <section class="landing-section" aria-labelledby="how-it-works"><h2 id="how-it-works">How it works</h2><ol><li><strong>List stock.</strong> Add the SKUs that one location can promise.</li><li><strong>Place a hold.</strong> Staff name the customer, quantity, and expiry.</li><li><strong>Resolve it.</strong> A supervisor converts or releases the hold.</li></ol></section>
-      <section class="landing-section" aria-labelledby="limits"><h2 id="limits">What Stock Promise does not do</h2><p>It is not a legal reservation, warehouse system, storefront, or replacement for your system of record.</p><p>Supervisors choose when resolved customer references, notes, and operator names are removed.</p></section>
-      <section class="landing-section" aria-labelledby="pricing"><h2 id="pricing">Optional Pro convenience</h2><p>A verified Pro license enables local operator profiles and on-device expiry reminders. Core holds and CSV export do not require Pro.</p><p class="muted">New Pro purchases are temporarily unavailable.</p></section>
+      <section class="landing-section" aria-labelledby="limits"><h2 id="limits">Limits and data retention</h2><p>It is not a legal reservation, warehouse system, storefront, or replacement for your system of record.</p><p>Supervisors choose when resolved customer references, notes, and operator names are removed.</p></section>
+      <section class="landing-section" aria-labelledby="pricing"><h2 id="pricing">Pro profiles and reminders</h2><p>A verified Pro license enables local operator profiles and on-device expiry reminders. Core holds and CSV export do not require Pro.</p><p class="muted">New Pro purchases are temporarily unavailable.</p></section>
     </main>
   {:else if loading}
     <main id="main" class="loading-state" aria-busy="true">
@@ -565,7 +584,7 @@
   {:else if accessRequired}
     <main id="main" class="center-state access-gate">
       <p class="eyebrow">Staff access</p>
-      <h1>Open the promise desk.</h1>
+      <h1>Open inventory holds.</h1>
       <p>Operational stock and customer references are private to this location.</p>
       {#if usesCiam()}
         <p>Sign in with your Sociobot account. Staff can create holds; supervisors can change stock and resolve holds.</p>
@@ -575,13 +594,13 @@
           <label for="access-pin">Supervisor PIN <span>6–12 digits</span></label>
           <input id="access-pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]+" minlength="6" maxlength="12" autocomplete="current-password" required />
           {#if formError}<p class="form-error" role="alert">{formError}</p>{/if}
-          <button class="primary-button" disabled={busy === 'unlock'}>{busy === 'unlock' ? 'Opening desk…' : 'Open promise desk'}</button>
+          <button class="primary-button" disabled={busy === 'unlock'}>{busy === 'unlock' ? 'Opening inventory…' : 'Open inventory holds'}</button>
         </form>
       {/if}
     </main>
   {:else if fatalError}
     <main id="main" class="center-state">
-      <p class="eyebrow alarm">Shared server unavailable</p><h1>The promise desk can’t open yet.</h1><p>{fatalError}</p><button class="primary-button" onclick={() => load()}>Try again</button>
+      <p class="eyebrow alarm">Shared server unavailable</p><h1>Inventory holds can’t open yet.</h1><p>{fatalError}</p><button class="primary-button" onclick={() => load()}>Try again</button>
     </main>
   {:else if data?.setup_required}
     <main id="main" class="setup-layout">
@@ -595,7 +614,7 @@
           <label for="location">Location name</label><input id="location" name="location_name" autocomplete="organization" maxlength="80" required placeholder="e.g. Main counter" />
           {#if !usesCiam()}<label for="setup-pin">Supervisor PIN <span>6–12 digits</span></label><input id="setup-pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]+" minlength="6" maxlength="12" autocomplete="new-password" required />{/if}
           {#if formError}<p class="form-error" role="alert">{formError}</p>{/if}
-          <button class="primary-button" disabled={busy === 'setup'}>{busy === 'setup' ? 'Securing location…' : 'Open the promise desk'}</button>
+          <button class="primary-button" disabled={busy === 'setup'}>{busy === 'setup' ? 'Securing location…' : 'Open inventory holds'}</button>
         </form>
         <p class="fine-print">This hosted service stores your stock, customer references, names, and hold notes. A supervisor can set retention and erase the location.</p>
       </section>
@@ -607,7 +626,7 @@
         <div class="scene-shade"></div>
         <div class="scene-content">
           <p class="eyebrow">{data.location_name}</p>
-          <p class="scene-heading">Promise desk</p>
+          <p class="scene-heading">Inventory holds</p>
           <p class="scene-note">A soft hold is a team signal, not a legal reservation.</p>
           <dl class="rail-metrics">
             <div><dt>Available now</dt><dd>{totalAvailable.toLocaleString()}</dd></div>
@@ -618,9 +637,9 @@
       </aside>
 
       <main id="main" class="workspace">
-        <h1 class="sr-only">Promise desk</h1>
-        <nav class="section-nav" aria-label="Promise desk sections">
-          <button class:active={tab === 'desk'} aria-current={tab === 'desk' ? 'page' : undefined} onclick={() => chooseTab('desk')}>Live desk <span>{data.active_holds.length}</span></button>
+        <h1 class="sr-only">{demo ? 'Manage sample inventory holds' : 'Manage inventory holds'}</h1>
+        <nav class="section-nav" aria-label="Inventory hold sections">
+          <button class:active={tab === 'desk'} aria-current={tab === 'desk' ? 'page' : undefined} onclick={() => chooseTab('desk')}>Inventory holds <span>{data.active_holds.length}</span></button>
           <button class:active={tab === 'outcomes'} aria-current={tab === 'outcomes' ? 'page' : undefined} onclick={() => chooseTab('outcomes')}>Outcomes</button>
           <button class:active={tab === 'settings'} aria-current={tab === 'settings' ? 'page' : undefined} onclick={() => chooseTab('settings')}>Stock & settings</button>
         </nav>

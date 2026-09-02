@@ -1177,6 +1177,155 @@ mod tests {
         headers
     }
 
+    // @claim:first-supervisor-setup
+    #[tokio::test]
+    async fn claim_first_supervisor_creates_the_location_once() {
+        let state = state().await;
+        assert!(status(State(state.clone())).await.unwrap().0.setup_required);
+        let Json(session) = setup(
+            State(state.clone()),
+            HeaderMap::new(),
+            Json(SetupInput {
+                location_name: "Harbor counter".into(),
+                pin: Some("246810".into()),
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(session.role, "supervisor");
+        assert!(!status(State(state.clone())).await.unwrap().0.setup_required);
+        let second = setup(
+            State(state),
+            HeaderMap::new(),
+            Json(SetupInput {
+                location_name: "Replacement counter".into(),
+                pin: Some("135790".into()),
+            }),
+        )
+        .await;
+        assert!(matches!(second, Err(ApiError::Conflict(_))));
+    }
+
+    // @claim:shared-durable-storage
+    #[tokio::test]
+    async fn claim_shared_durable_storage_survives_sessions_and_restart() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("shared.db");
+        let options = SqliteConnectOptions::new()
+            .filename(&path)
+            .create_if_missing(true)
+            .busy_timeout(Duration::from_secs(5));
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options.clone())
+            .await
+            .unwrap();
+        crate::db::migrate(&pool).await.unwrap();
+        let state = AppState::new(pool, "before-restart".into());
+        sqlx::query("INSERT INTO settings(singleton,location_name,supervisor_pin_hash,created_at) VALUES(1,'Shared stockroom','hash',0)")
+            .execute(&state.pool).await.unwrap();
+
+        let writer = role_headers(&state, Role::Supervisor).await;
+        let (_, Json(created_inventory)) = create_inventory(
+            State(state.clone()),
+            writer.clone(),
+            Json(InventoryInput {
+                sku: "SHARED-1".into(),
+                name: "Shared valve".into(),
+                on_hand: 8,
+            }),
+        )
+        .await
+        .unwrap();
+        let inventory_id = created_inventory["id"].as_i64().unwrap();
+        let _ = create_hold(
+            State(state.clone()),
+            writer.clone(),
+            Json(HoldInput {
+                inventory_id,
+                quantity: 2,
+                customer: "North counter order".into(),
+                order_note: Some("Pickup today".into()),
+                operator_name: "Mina".into(),
+                duration_minutes: 30,
+            }),
+        )
+        .await
+        .unwrap();
+        let (_, Json(resolved_hold)) = create_hold(
+            State(state.clone()),
+            writer.clone(),
+            Json(HoldInput {
+                inventory_id,
+                quantity: 1,
+                customer: "South counter order".into(),
+                order_note: None,
+                operator_name: "Ravi".into(),
+                duration_minutes: 30,
+            }),
+        )
+        .await
+        .unwrap();
+        let _ = resolve_hold(
+            State(state.clone()),
+            Path(resolved_hold["id"].as_str().unwrap().to_string()),
+            writer,
+            Json(ResolveInput {
+                action: "release".into(),
+                actor: "Supervisor".into(),
+            }),
+        )
+        .await
+        .unwrap();
+
+        let coworker = role_headers(&state, Role::Supervisor).await;
+        let Json(shared_view) = bootstrap(State(state.clone()), coworker.clone())
+            .await
+            .unwrap();
+        assert_eq!(shared_view.inventory.len(), 1);
+        assert_eq!(shared_view.inventory[0].held, 2);
+        assert_eq!(shared_view.active_holds[0].customer, "North counter order");
+        assert_eq!(
+            shared_view.recent_outcomes[0].customer,
+            "South counter order"
+        );
+        assert_eq!(
+            audit(State(state.clone()), coworker).await.unwrap().0["entries"]
+                .as_array()
+                .unwrap()
+                .len(),
+            4
+        );
+        state.pool.close().await;
+
+        let reopened = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await
+            .unwrap();
+        crate::db::migrate(&reopened).await.unwrap();
+        let restarted = AppState::new(reopened, "after-restart".into());
+        let after_restart = role_headers(&restarted, Role::Supervisor).await;
+        let Json(restored_view) = bootstrap(State(restarted.clone()), after_restart.clone())
+            .await
+            .unwrap();
+        assert_eq!(
+            restored_view.location_name.as_deref(),
+            Some("Shared stockroom")
+        );
+        assert_eq!(restored_view.inventory[0].sku, "SHARED-1");
+        assert_eq!(restored_view.inventory[0].held, 2);
+        assert_eq!(restored_view.active_holds[0].operator_name, "Mina");
+        assert_eq!(restored_view.recent_outcomes[0].status, "released");
+        assert_eq!(
+            audit(State(restarted), after_restart).await.unwrap().0["entries"]
+                .as_array()
+                .unwrap()
+                .len(),
+            4
+        );
+    }
+
     // @claim:contested-stock-protection
     #[tokio::test]
     async fn claim_contested_stock_protection_allows_only_one_competing_hold() {
