@@ -1,1 +1,1 @@
-Prevent duplicate stock promises with timed team holds for one distributor location.
+Prevent duplicate stock promises with timed shared holds for one location.

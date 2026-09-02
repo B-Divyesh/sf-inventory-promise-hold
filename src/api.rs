@@ -1163,6 +1163,16 @@ mod tests {
         AppState::new(pool, "test".into())
     }
 
+    async fn ciam_state() -> AppState {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        crate::db::migrate(&pool).await.unwrap();
+        AppState::with_auth(pool, "ciam-test".into(), AuthService::ciam_for_tests())
+    }
+
     async fn auth_headers(state: &AppState) -> HeaderMap {
         role_headers(state, Role::Supervisor).await
     }
@@ -1173,6 +1183,16 @@ mod tests {
         headers.insert(
             header::AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {}", session.token)).unwrap(),
+        );
+        headers
+    }
+
+    fn ciam_headers(tenant_id: &str, roles: &[&str]) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        let token = AuthService::test_bearer(tenant_id, roles);
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {token}")).unwrap(),
         );
         headers
     }
@@ -1523,6 +1543,82 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(authenticated.0.inventory.len(), 1);
+    }
+
+    // @claim:location-data-access
+    #[tokio::test]
+    async fn claim_location_data_access_rejects_unauthenticated_wrong_tenant_and_roleless_requests()
+    {
+        let state = ciam_state().await;
+        let now = db::now();
+        sqlx::query("INSERT INTO settings(singleton,location_name,supervisor_pin_hash,created_at) VALUES(1,'Private stockroom','ciam-managed',?)")
+            .bind(now)
+            .execute(&state.pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO inventory(sku,name,on_hand,created_at,updated_at) VALUES('PRIVATE-1','Customer item',2,?,?)")
+            .bind(now)
+            .bind(now)
+            .execute(&state.pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO holds(id,inventory_id,quantity,customer,order_note,operator_name,status,created_at,expires_at,resolved_at,resolved_by) VALUES('private-active',1,1,'Private customer','Counter order','Mina','active',?,?,NULL,NULL)")
+            .bind(now)
+            .bind(now + 1800)
+            .execute(&state.pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO holds(id,inventory_id,quantity,customer,order_note,operator_name,status,created_at,expires_at,resolved_at,resolved_by) VALUES('private-outcome',1,1,'Past customer','Completed order','Mina','converted',?,?,?, 'Supervisor')")
+            .bind(now - 7200)
+            .bind(now - 5400)
+            .bind(now - 3600)
+            .execute(&state.pool)
+            .await
+            .unwrap();
+        audit_event(
+            &state.pool,
+            "hold.created",
+            "hold",
+            "private-active",
+            "Mina",
+            json!({"quantity": 1}),
+        )
+        .await
+        .unwrap();
+
+        let denied = [
+            HeaderMap::new(),
+            ciam_headers(
+                "00000000-0000-0000-0000-000000000000",
+                &["stockpromise.staff"],
+            ),
+            ciam_headers("35c6fe40-0ec0-46b6-98c6-213ad4de6650", &[]),
+        ];
+        for headers in denied {
+            assert!(matches!(
+                bootstrap(State(state.clone()), headers.clone()).await,
+                Err(ApiError::Unauthorized(_))
+            ));
+            assert!(matches!(
+                audit(State(state.clone()), headers).await,
+                Err(ApiError::Unauthorized(_))
+            ));
+        }
+
+        let staff = ciam_headers(
+            "35c6fe40-0ec0-46b6-98c6-213ad4de6650",
+            &["stockpromise.staff"],
+        );
+        let Json(visible_to_staff) = bootstrap(State(state.clone()), staff.clone())
+            .await
+            .unwrap();
+        assert_eq!(visible_to_staff.inventory.len(), 1);
+        assert_eq!(visible_to_staff.active_holds.len(), 1);
+        assert_eq!(visible_to_staff.recent_outcomes.len(), 1);
+        assert!(matches!(
+            audit(State(state), staff).await,
+            Err(ApiError::Unauthorized(_))
+        ));
     }
 
     // @claim:role-boundary

@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
+  testIgnore: '**/hosted-auth.spec.ts',
   timeout: 30_000,
   fullyParallel: false,
   workers: 1,

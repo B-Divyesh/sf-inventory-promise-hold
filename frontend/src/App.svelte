@@ -49,6 +49,7 @@
   const demoPrefix = 'demo:stock-promise:';
   const demoKey = `${demoPrefix}state`;
   let licenseCheckController: AbortController | null = null;
+  const landingPreview = sampleData();
 
   $: filteredInventory = (data?.inventory || []).filter((item) =>
     `${item.sku} ${item.name}`.toLowerCase().includes(query.trim().toLowerCase())
@@ -568,14 +569,22 @@
           <h1>Hold scarce stock before it is promised twice.</h1>
           <p>For distributors and resellers taking orders in parallel, Stock Promise shows a timed team hold before stock is promised.</p>
           <div class="landing-actions"><a class="primary-button" href="/?demo=1" onclick={(event) => { event.preventDefault(); navigate('/?demo=1'); }}>Try it with sample data</a><span>Open a sample stockroom.</span></div>
-          <div class="plain-facts"><span>Timed holds expire automatically.</span><span>The sample never changes a live stockroom.</span><span>New Pro purchases are temporarily unavailable.</span></div>
+          <div class="plain-facts"><span>Timed holds expire automatically.</span><span>The sample never changes a live stockroom.</span><span>The sample opens offline after your first visit.</span><span>Paid upgrades are temporarily unavailable.</span></div>
           <button class="secondary-button" onclick={startLive}>Open inventory holds</button>
         </div>
         <picture><source media="(max-width: 700px)" srcset="/assets/stockroom-watch-640.webp" /><img src="/assets/stockroom-watch-1536.webp" width="1536" height="1024" alt="An orderly stockroom aisle with a small carton group under a warm work light" fetchpriority="high" decoding="async" /></picture>
       </section>
+      <section class="sample-preview" aria-labelledby="sample-preview-title">
+        <div class="sample-preview-copy"><p class="eyebrow">Sample stockroom</p><h2 id="sample-preview-title">Preview sample inventory holds</h2><p>See three SKUs, an active customer hold, and a completed outcome before trying the sample.</p><a class="secondary-button" href="/?demo=1" onclick={(event) => { event.preventDefault(); navigate('/?demo=1'); }}>Open sample stockroom</a></div>
+        <div class="preview-desk" aria-label="Read-only sample inventory hold preview">
+          <div class="preview-location"><span>Harbor Parts — sample</span><strong>{landingPreview.inventory.reduce((sum, item) => sum + item.available, 0)} available</strong></div>
+          <ul class="preview-stock" aria-label="Sample stock availability">{#each landingPreview.inventory as item (item.id)}<li><div><span class="sku">{item.sku}</span><strong>{item.name}</strong></div><span>{item.available} available</span></li>{/each}</ul>
+          {#each landingPreview.active_holds as hold (hold.id)}<article class="preview-hold"><span class="sku">{hold.sku}</span><strong>{hold.quantity} × {hold.item_name}</strong><p>For {hold.customer} · {relativeExpiry(hold.expires_at, now)}</p></article>{/each}
+          {#each landingPreview.recent_outcomes as outcome (outcome.id)}<p class="preview-outcome"><span>{outcome.status}</span> {outcome.customer}</p>{/each}
+        </div>
+      </section>
       <section class="landing-section" aria-labelledby="how-it-works"><h2 id="how-it-works">How it works</h2><ol><li><strong>List stock.</strong> Add the SKUs that one location can promise.</li><li><strong>Place a hold.</strong> Staff name the customer, quantity, and expiry.</li><li><strong>Resolve it.</strong> A supervisor converts or releases the hold.</li></ol></section>
-      <section class="landing-section" aria-labelledby="limits"><h2 id="limits">Limits and data retention</h2><p>It is not a legal reservation, warehouse system, storefront, or replacement for your system of record.</p><p>Supervisors choose when resolved customer references, notes, and operator names are removed.</p></section>
-      <section class="landing-section" aria-labelledby="pricing"><h2 id="pricing">Pro profiles and reminders</h2><p>A verified Pro license enables local operator profiles and on-device expiry reminders. Core holds and CSV export do not require Pro.</p><p class="muted">New Pro purchases are temporarily unavailable.</p></section>
+      <section class="landing-section" aria-labelledby="limits"><h2 id="limits">Limits and data retention</h2><p>It is not a legal reservation, warehouse system, or storefront. It does not replace your inventory or order system.</p><p>Supervisors choose when resolved customer references, notes, and operator names are removed.</p></section>
     </main>
   {:else if loading}
     <main id="main" class="loading-state" aria-busy="true">
@@ -585,7 +594,7 @@
     <main id="main" class="center-state access-gate">
       <p class="eyebrow">Staff access</p>
       <h1>Open inventory holds.</h1>
-      <p>Operational stock and customer references are private to this location.</p>
+      <p>Sign in to view this location’s stock and customer references.</p>
       {#if usesCiam()}
         <p>Sign in with your Sociobot account. Staff can create holds; supervisors can change stock and resolve holds.</p>
         <button class="primary-button" onclick={() => signIn()}>Sign in with Sociobot</button>
@@ -712,11 +721,11 @@
           {#if supervisor}
             <section class="settings-section privacy-controls"><div class="section-title"><div><h3>Data retention</h3><p>Remove resolved hold details after {retentionDays} days.</p></div><button class="secondary-button" onclick={() => openModal('privacy')}>Manage data</button></div><p class="muted">Retention removes resolved customer references, notes, and operator names. Erasing this location permanently removes its inventory, holds, sessions, and audit record.</p></section>
           {/if}
-          <section class="pro-section"><div><p class="eyebrow">Optional team convenience</p><h3>{license.unlocked ? 'Stock Promise Pro is active' : 'Pro reminders & profiles'}</h3><p>Core holds and CSV export do not require Pro.</p></div>
+          <section class="pro-section"><div><p class="eyebrow">Existing Pro licenses</p><h3>{license.unlocked ? 'Pro features are active' : 'Restore an existing Pro license'}</h3><p>Core holds and CSV export do not require a license.</p></div>
             {#if license.unlocked}
               <div class="pro-controls"><label for="profile-name">Operator profile name</label><div class="inline-form"><input id="profile-name" bind:value={operatorName} maxlength="80" /><button class="secondary-button" onclick={addProfile}>Save profile</button></div>{#if profiles.length}<div class="chips">{#each profiles as profile}<button onclick={() => operatorName = profile}>{profile}</button>{/each}</div>{/if}<button class="primary-button small" onclick={enableReminders}>{reminders ? 'Reminders enabled' : 'Enable 5-minute reminders'}</button></div>
             {:else}
-              <div class="price-lock"><p>Saved operator profiles and on-device expiry notifications need a verified Pro license.</p><p class="muted">New Pro purchases are temporarily unavailable. Existing license holders can restore a license below.</p></div>
+              <div class="price-lock"><p>Saved operator profiles and on-device expiry notifications need a verified existing Pro license.</p><p class="muted">Paid upgrades are temporarily unavailable. Existing license holders can restore a license below.</p></div>
             {/if}
             {#if license.notice}<p class="license-notice">{license.notice}</p>{/if}
             <form class="restore-form" onsubmit={(event) => { event.preventDefault(); restoreLicense(event); }}><label for="license">Have a license? Paste it here</label><div class="inline-form"><input id="license" name="license" autocomplete="off" /><button class="secondary-button">Verify license</button></div></form>

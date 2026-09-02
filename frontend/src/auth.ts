@@ -1,4 +1,4 @@
-import type { AccountInfo, PublicClientApplication } from '@azure/msal-browser';
+import type { AccountInfo, AuthenticationResult, PublicClientApplication } from '@azure/msal-browser';
 
 export type AuthMode = 'local' | 'ciam';
 
@@ -8,6 +8,64 @@ const scopes = ['openid', 'profile', 'email'];
 let mode: AuthMode = 'local';
 
 let client: PublicClientApplication | null = null;
+
+function fixtureToken(claims: Record<string, unknown>): string {
+  const encode = (value: unknown) => btoa(JSON.stringify(value))
+    .replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(claims)}.fixture`;
+}
+
+/**
+ * The hosted-auth browser contract uses a build-only callback fixture. It calls
+ * MSAL's real cache hydrator with the result of a stubbed identity exchange,
+ * allowing the test to observe the exact browser storage MSAL uses. This branch
+ * is absent from release builds because VITE_HOSTED_AUTH_FIXTURE is never set.
+ */
+async function completeHostedFixture(nextClient: PublicClientApplication): Promise<void> {
+  if (import.meta.env.VITE_HOSTED_AUTH_FIXTURE !== '1') return;
+  if (new URL(location.href).searchParams.get('test-hosted-auth') !== '1') return;
+
+  const now = Math.floor(Date.now() / 1000);
+  const claims = {
+    aud: clientId,
+    exp: now + 3600,
+    iat: now,
+    iss: `https://sociobotcustomers.ciamlogin.com/${tenant}/v2.0`,
+    name: 'Hosted fixture staff',
+    oid: 'hosted-fixture-user',
+    preferred_username: 'fixture.staff@example.test',
+    roles: ['stockpromise.staff'],
+    sub: 'hosted-fixture-user',
+    tid: tenant,
+  };
+  const idToken = fixtureToken(claims);
+  const account: AccountInfo = {
+    homeAccountId: `${claims.oid}.${tenant}`,
+    environment: 'sociobotcustomers.ciamlogin.com',
+    tenantId: tenant,
+    username: claims.preferred_username,
+    localAccountId: claims.oid,
+    name: claims.name,
+    idToken,
+    idTokenClaims: claims,
+  };
+  const exchange: AuthenticationResult = {
+    authority: `https://sociobotcustomers.ciamlogin.com/${tenant}`,
+    uniqueId: claims.oid,
+    tenantId: tenant,
+    scopes,
+    account,
+    idToken,
+    idTokenClaims: claims,
+    accessToken: 'hosted-fixture-access-token',
+    fromCache: false,
+    expiresOn: new Date((now + 3600) * 1000),
+    tokenType: 'Bearer',
+    correlationId: 'hosted-storage-fixture',
+  };
+  await nextClient.hydrateCache(exchange, { scopes });
+  nextClient.setActiveAccount(account);
+}
 
 async function getClient(): Promise<PublicClientApplication> {
   if (client) return client;
@@ -31,6 +89,7 @@ export async function configureAuth(next: AuthMode): Promise<void> {
     await client.initialize();
     const result = await client.handleRedirectPromise();
     if (result?.account) client.setActiveAccount(result.account);
+    await completeHostedFixture(client);
     if (!client.getActiveAccount()) {
       const [account] = client.getAllAccounts();
       if (account) client.setActiveAccount(account);

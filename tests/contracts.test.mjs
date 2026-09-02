@@ -98,8 +98,8 @@ test('recorded unavailable checkout is not offered by the product source', async
     readFile(new URL('../frontend/src/Legal.svelte', import.meta.url), 'utf8'),
     readFile(new URL('../frontend/src/license.ts', import.meta.url), 'utf8'),
   ]);
-  assert.match(app, /New Pro purchases are temporarily unavailable\./);
-  assert.match(legal, /New Stock Promise Pro purchases are temporarily unavailable\./);
+  assert.match(app, /Paid upgrades are temporarily unavailable\./);
+  assert.match(legal, /New purchases are temporarily unavailable\./);
   assert.doesNotMatch(`${app}\n${legal}\n${license}`, /\/checkout/);
 });
 
@@ -107,6 +107,7 @@ test('every registered claim has one tagged sandbox test', async () => {
   const manifest = JSON.parse(await readFile(new URL('../.factory/claims.json', import.meta.url), 'utf8'));
   const source = (await Promise.all([
     '../tests/e2e/promise.spec.ts',
+    '../tests/e2e/hosted-auth.spec.ts',
     '../src/api.rs',
     '../src/auth.rs',
     '../src/db.rs',
@@ -120,7 +121,7 @@ test('every registered claim has one tagged sandbox test', async () => {
     assert.equal(typeof entry.sandbox, 'string');
     const tag = `@claim:${entry.id}`;
     assert.equal(source.split(tag).length - 1, 1, `${tag} must identify exactly one test`);
-    assert.match(entry.test, /(?:npm run test:e2e -- --grep @claim:|cargo test claim_)/);
+    assert.match(entry.test, /(?:npm run test:e2e(?::hosted)? -- --grep @claim:|cargo test claim_)/);
   }
 });
 
@@ -144,9 +145,18 @@ test('reviewed visitor copy uses one plain term for each concept', async () => {
   assert.match(app, /Open inventory holds/);
   assert.match(app, /Manage sample inventory holds/);
   assert.match(app, /Limits and data retention/);
-  assert.match(app, /Pro profiles and reminders/);
+  assert.match(app, /The sample opens offline after your first visit\./);
+  assert.match(app, /Preview sample inventory holds/);
+  assert.match(app, /Open sample stockroom/);
+  assert.match(app, /Sign in to view this location’s stock and customer references\./);
+  assert.doesNotMatch(app, /system of record/);
+  assert.doesNotMatch(readme, /system of record|internal coordination signal/);
+  assert.match(readme, /A hold tells coworkers that stock may be needed for an order\./);
+  assert.match(readme, /It does not replace your inventory\s+or order system\./);
   assert.match(app, />Leave demo<\/a>/);
   assert.doesNotMatch(app, /Shared live|Open the live desk|Promise desk|Live desk|Optional Pro convenience|Start for real/);
+  const landing = app.slice(app.indexOf('<main id="main" class="landing-page">'), app.indexOf('{:else if loading}'));
+  assert.doesNotMatch(landing, /Pro profiles and reminders|Optional team convenience/);
   assert.match(legal, /<a class="text-button" href="\/"/);
   assert.match(notFound, /<h1>Page not found<\/h1>/);
   assert.match(notFound, /build __BUILD_SHA__/);

@@ -18,9 +18,9 @@
     <h1>Privacy for Stock Promise</h1>
     <p>Stock Promise stores the inventory, customer references, operator names, and hold notes that your team enters. The hosted service stores this operational data in its durable database.</p>
     <h2>What is stored</h2>
-    <p>Inventory records, temporary holds, outcomes, and the audit record are stored so coworkers see the same stock. The audit record keeps past changes and cannot be edited. Sociobot sign-in tokens stay in the current browser session. Operator preferences, an optional Pro license, and reminder preferences stay in this browser.</p>
+    <p>Inventory records, temporary holds, outcomes, and the audit record are stored so coworkers see the same stock. The audit record keeps past changes and cannot be edited. Sociobot sign-in tokens stay in the current browser session. Operator preferences, an optional license, and reminder preferences stay in this browser’s local storage.</p>
     <h2>What is sent elsewhere</h2>
-    <p>There is no advertising or behavioral analytics. Sign-in uses Sociobot Microsoft Entra External ID. When an existing Pro license is verified, its token is sent to Sociobot’s billing API. New Pro purchases are temporarily unavailable.</p>
+    <p>There is no advertising or behavioral analytics. Sign-in uses Sociobot Microsoft Entra External ID. When an existing license is verified, its token is sent to Sociobot’s billing API.</p>
     <h2>Retention and control</h2>
     <p>A supervisor can set a 30–730 day period before resolved customer references, hold notes, and operator names are removed. The audit record does not include those values for new holds. A supervisor can also permanently erase the whole location, including inventory, holds, sessions, and its audit record. Clearing browser data removes browser-only preferences and license tokens, but does not erase shared records.</p>
     <h2>Contact</h2>
@@ -30,11 +30,11 @@
     <h1>Terms for temporary stock holds</h1>
     <p>Stock Promise is an operational coordination tool. A soft hold helps coworkers avoid duplicate promises while an order is being prepared; it does not create ownership, a sale, a warehouse allocation, or any legal right to goods.</p>
     <h2>Your responsibilities</h2>
-    <p>You are responsible for keeping on-hand counts accurate, assigning staff and supervisor roles, choosing suitable hold durations, and confirming orders in your system of record. Review expired and unresolved holds as part of normal operations.</p>
+    <p>You are responsible for keeping on-hand counts accurate, assigning staff and supervisor roles, choosing suitable hold durations, and confirming orders in your order system. Review expired and unresolved holds as part of normal operations.</p>
     <h2>Service and data</h2>
     <p>The service is provided “as is,” without a guarantee of uninterrupted availability. Do not enter sensitive personal, payment, health, or authentication data in customer names or order notes.</p>
-    <h2>Pro license</h2>
-    <p>New Stock Promise Pro purchases are temporarily unavailable. An existing valid Pro license enables saved operator profiles and on-device expiry reminders. Core holds and CSV export do not require Pro.</p>
+    <h2>Existing Pro licenses</h2>
+    <p>New purchases are temporarily unavailable. An existing valid Pro license enables saved operator profiles and on-device expiry reminders. Core holds and CSV export do not require a license.</p>
     <h2>Fair use</h2>
     <p>You may use the service for lawful inventory coordination. Do not interfere with normal service use or present inaccurate stock availability to customers.</p>
   {/if}

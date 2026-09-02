@@ -36,20 +36,16 @@ passwords, or other sensitive data into
 customer references or notes. See [/privacy](https://inventory-promise-hold.sociobot.in/privacy)
 and [/terms](https://inventory-promise-hold.sociobot.in/terms).
 
-A hold is an internal coordination signal. It is not a legal reservation,
-sale, warehouse allocation, or replacement for a system of record.
+A hold tells coworkers that stock may be needed for an order. It is not a legal
+reservation, sale, or warehouse allocation. It does not replace your inventory
+or order system.
 
-## Hold safety and optional Pro features
+## Hold safety
 
 Timed holds expire automatically. If two staff members try to hold the same
 last units, only the first accepted hold protects stock. The audit record keeps
 past changes and cannot be edited. A supervisor can permanently erase the whole location when it is
 no longer needed.
-
-A verified existing Pro license enables saved operator profiles and optional
-on-device expiry reminders. Core holds and CSV export do not require Pro. New
-Pro purchases are temporarily unavailable; the settings screen can still
-restore an existing license.
 
 ## Run locally
 

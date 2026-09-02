@@ -251,16 +251,35 @@ test('390px targets are at least 44px and 200% text does not widen the demo', as
   await context.close();
 });
 
-test('390px first screen contains the job, action, and three plain facts', async ({ browser }) => {
+test('390px first screen contains the job, action, and privacy, offline, and purchase facts', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   await page.goto('/', { waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { name: 'Hold scarce stock before it is promised twice.' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Try it with sample data' })).toBeVisible();
   await expect(page.locator('.plain-facts')).toBeVisible();
+  await expect(page.locator('.plain-facts')).toContainText('The sample never changes a live stockroom.');
+  await expect(page.locator('.plain-facts')).toContainText('The sample opens offline after your first visit.');
+  await expect(page.locator('.plain-facts')).toContainText('Paid upgrades are temporarily unavailable.');
   const facts = await page.locator('.plain-facts').boundingBox();
   expect(facts).not.toBeNull();
   expect(facts!.y + facts!.height).toBeLessThanOrEqual(844);
+  await context.close();
+});
+
+test('landing preview reuses the shipped sample inventory and opens the isolated demo', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  await page.goto('/', { waitUntil: 'networkidle' });
+  const preview = page.locator('.sample-preview');
+  await expect(preview.getByRole('heading', { name: 'Preview sample inventory holds' })).toBeVisible();
+  await expect(preview.locator('.preview-stock > li')).toHaveCount(3);
+  await expect(preview).toContainText('Northline Plumbing order 418');
+  await expect(preview).toContainText('Tideway Maintenance order 771');
+  await preview.getByRole('link', { name: 'Open sample stockroom' }).click();
+  await expect(page).toHaveURL('/?demo=1');
+  await expect(page.locator('.inventory-list > li')).toHaveCount(3);
+  await expect(page.getByText('Northline Plumbing order 418')).toBeVisible();
   await context.close();
 });
 
@@ -303,7 +322,7 @@ test('@claim:demo-isolated demo storage and requests never cross into the real w
   releaseVerification();
   await page.waitForTimeout(100);
   await page.getByRole('button', { name: 'Stock & settings' }).click();
-  await expect(page.getByRole('heading', { name: 'Pro reminders & profiles' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Restore an existing Pro license' })).toBeVisible();
   await page.getByRole('button', { name: 'Import CSV' }).click();
   await page.getByLabel('Choose CSV file').setInputFiles({
     name: 'demo-stock.csv',
@@ -442,7 +461,7 @@ test('@claim:browser-storage live access and preferences use their documented br
   await page.getByRole('button', { name: 'Stock & settings' }).click();
   await page.getByLabel('Have a license? Paste it here').fill('browser-storage-license');
   await page.getByRole('button', { name: 'Verify license' }).click();
-  await expect(page.getByRole('heading', { name: 'Stock Promise Pro is active' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pro features are active' })).toBeVisible();
   await page.getByRole('button', { name: 'Save profile' }).click();
   await page.getByRole('button', { name: 'Enable 5-minute reminders' }).click();
 
@@ -518,7 +537,7 @@ test('@claim:pro-profiles-reminders a verified license saves profiles and sends 
   });
   await page.reload({ waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Stock & settings' }).click();
-  await expect(page.getByRole('heading', { name: 'Stock Promise Pro is active' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pro features are active' })).toBeVisible();
   await page.getByLabel('Operator profile name').fill('Mina');
   await page.getByRole('button', { name: 'Save profile' }).click();
   await expect(page.getByRole('button', { name: 'Mina' }).first()).toBeVisible();
@@ -546,23 +565,26 @@ test('@claim:pro-license-restore verifies a pasted existing license without leav
   await page.getByRole('button', { name: 'Stock & settings' }).click();
   await page.getByLabel('Have a license? Paste it here').fill('restored-fixture');
   await page.getByRole('button', { name: 'Verify license' }).click();
-  await expect(page.getByRole('heading', { name: 'Stock Promise Pro is active' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pro features are active' })).toBeVisible();
   expect(await page.evaluate(() => sessionStorage.getItem('demo:stock-promise:license'))).toBe('restored-fixture');
   expect(await page.evaluate(() => localStorage.getItem('sb_license:inventory-promise-hold'))).toBeNull();
   expect(verificationRequests).toEqual(['https://api.sociobot.in/api/v1/products/inventory-promise-hold/verify?license=restored-fixture']);
   await page.getByRole('button', { name: 'Reset demo' }).click();
-  await expect(page.getByRole('heading', { name: 'Pro reminders & profiles' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Restore an existing Pro license' })).toBeVisible();
   expect(await page.evaluate(() => Object.keys(sessionStorage).filter((key) => key.startsWith('demo:stock-promise:')))).toEqual([]);
   await context.close();
 });
 
 test('@claim:pro-checkout-status does not offer the recorded unavailable checkout route', async ({ page }) => {
   await page.goto('/', { waitUntil: 'networkidle' });
-  await expect(page.locator('.plain-facts').getByText('New Pro purchases are temporarily unavailable.')).toBeVisible();
+  await expect(page.locator('.plain-facts').getByText('Paid upgrades are temporarily unavailable.')).toBeVisible();
   expect(await page.locator('a[href*="/checkout"]').count()).toBe(0);
   await page.goto('/demo', { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Stock & settings' }).click();
-  await expect(page.getByText('Existing license holders can restore a license below.')).toBeVisible();
+  await expect(page.getByText('Paid upgrades are temporarily unavailable. Existing license holders can restore a license below.')).toBeVisible();
+  expect(await page.locator('a[href*="/checkout"]').count()).toBe(0);
+  await page.goto('/terms', { waitUntil: 'networkidle' });
+  await expect(page.getByText('New purchases are temporarily unavailable.')).toBeVisible();
   expect(await page.locator('a[href*="/checkout"]').count()).toBe(0);
 });
 
@@ -581,6 +603,6 @@ test('@claim:core-features-no-pro creates a hold and exports CSV without a licen
   await page.getByRole('button', { name: 'Export CSV' }).click();
   expect((await download).suggestedFilename()).toBe('stock-promise-holds.csv');
   await page.getByRole('button', { name: 'Stock & settings' }).click();
-  await expect(page.getByText('New Pro purchases are temporarily unavailable.')).toBeVisible();
+  await expect(page.getByText('Paid upgrades are temporarily unavailable.')).toBeVisible();
   await context.close();
 });
