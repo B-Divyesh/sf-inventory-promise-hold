@@ -61,12 +61,23 @@ durable one-replica `/data` topology.
 
 ## Deployment and live checks
 
-Run `npm run deploy` only from this clean committed source. The scoped release
-script deploys `inventory-promise-hold`, requests the factory-managed `/data`
-mount, verifies one ready replica with its Azure Files volume at `/data`, and
-requires `/health` to return the exact committed build SHA before it succeeds.
-After deployment, confirm `/health` is `no-store`, live `/privacy` and
-`/terms` return 200 with revalidation, and hashed assets are immutable.
+`npm run deploy` completed from a clean committed source. The scoped release
+script deployed `inventory-promise-hold`, verified its own exact live build
+identity, and checked the durable topology. The observed deployed revision was
+`sf-inventory-promise-hold--0000037`: exactly one ready replica, with the
+factory-managed `sf-inventory-promise-hold-data` Azure Files volume mounted at
+`/data`.
+
+Post-deploy checks passed:
+
+- `/health` returned `status:"ok"` with the exact committed build SHA and
+  `Cache-Control: no-store`.
+- Direct `HEAD /privacy` and `HEAD /terms` each returned 200 with
+  `Cache-Control: no-cache, must-revalidate`.
+- The hashed entry asset returned
+  `Cache-Control: public, max-age=31536000, immutable`.
+- Unauthenticated `GET /api/bootstrap` returned 401, preserving the staff
+  access boundary.
 
 ## Known gaps / next steps
 
