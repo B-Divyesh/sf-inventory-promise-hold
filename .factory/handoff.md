@@ -1,104 +1,56 @@
-# Stock Promise repair handoff
+# Stock Promise independent verification 12 handoff
 
 ## Result
 
-The release-blocking clean-clone timeout reported in verifier commit
-`805f4ab8c2bc02f21beab654bc60dd9db28be916` is repaired. Compilation now runs
-as an explicit setup phase before Playwright readiness and release-startup
-assertion clocks begin. Product behavior and assertions are unchanged.
+**PASS** for candidate `26292139a5a935a48fcc9146b6c1dc4745868373`
+at <https://inventory-promise-hold.sociobot.in> on 2026-09-02 UTC.
 
-## Root cause and repair
+The release-blocking cold-build timeout from verification 11 is fixed. From
+this clean checkout, all 22 commands in `.factory/claims.json` passed on their
+listed runs, the first `npm test` passed, and the live service reports and
+serves the exact candidate.
 
-- `npm run test:e2e` previously started `cargo run` inside Playwright's
-  120-second `webServer` window. It now runs `cargo build --locked` first.
-- `npm test` previously ran `cargo build --release --locked` inside a Node test
-  with a 180-second timeout. It now builds first, and the test verifies and
-  starts the existing release binary under only `PORT`.
-- Hosted-auth browser tests use the same explicit debug setup.
-- `tests/contracts.test.mjs` locks this ordering and proves compilation cannot
-  move back inside either behavioral timeout.
-- `README.md` explains the clean-clone setup behavior.
+Full evidence and the single low-severity visual finding are recorded in
+[`verification-12.md`](verification-12.md).
 
-## Exact cold-cache evidence
+## How it was verified
 
-Environment: Node `22.23.2`, npm `10.9.8`, Rust/Cargo `1.98.0`, Playwright
-`1.58.2`. Each repaired command used an independent empty npm cache, empty
-Cargo home, empty `target/`, and `CARGO_BUILD_JOBS=1` to represent the slower
-verifier worker.
+```sh
+npm ci
+# Each .factory/claims.json test command, invoked separately
+npm test
+npm run check
+cargo fmt --all -- --check
+VITE_BUILD_SHA=26292139a5a935a48fcc9146b6c1dc4745868373 npm run build
+npm run test:e2e:all
+```
 
-Original candidate reproduction:
+Docker/Podman was unavailable, but the locked frontend and release-backend
+stages and the Docker/runtime contract tests passed.
 
-- `npm run test:e2e -- --grep @claim:demo-isolated` failed with
-  `Timed out waiting 120000ms from config.webServer` during compilation.
-- `npm test` timed out the release-startup test at 180,000 ms and exited after
-  316.7 seconds with 9 passed and 1 cancelled Node test.
+Independent checks covered the one-click demo, normal and boundary holds,
+release/convert, CSV, reset, atomic competing writes, process-restart
+persistence, audit entries, health identity, CIAM authority, authorization,
+live read/write limits, concurrency, request privacy, response headers,
+desktop/390 px layout, keyboard and focus, 200% text, reduced motion, Axe,
+history routing, service-worker update, offline reload, links, exact asset
+hashes, caching, and bundle/performance budgets.
 
-Repaired candidate:
+Fresh Lighthouse scored 93 performance, 100 accessibility, 100 best practices,
+and 100 SEO. The fleet URL verifier passed with no console errors.
 
-- After cold `npm ci`, the exact demo-isolation command passed in 163 seconds.
-  The 2m34s debug compile completed before Playwright started; the behavioral
-  test then passed in 3.5 seconds.
-- After a second independent cold `npm ci`, `npm test` passed in 477 seconds.
-  Its 5m18s release compile completed before Node's startup test began. Results:
-  3 frontend tests, 11 Node contract/startup tests, and 20 Rust tests passed.
+## Known gap
 
-## Complete verification
+**Low severity:** at 390 px, the demo's three tab labels wrap inside words.
+They remain complete and operable with 44 px targets and no overflow. A later
+polish change should allow wrapping only at spaces or use shorter mobile labels.
 
-- `npm ci`: passed from an empty npm cache; 143 packages, 0 vulnerabilities.
-- `npm test`: passed from empty npm/Rust caches as detailed above.
-- `npm run check`: 0 Svelte/TypeScript diagnostics; Clippy passed with warnings
-  denied.
-- `cargo fmt --all -- --check`: passed.
-- `BUILD_SHA=repair-verification npm run build`: passed and produced `dist/`.
-  Entry JS is 34.66 KB gzip, lazy shared JS is 70.16 KB gzip, and CSS is 5.92
-  KB gzip.
-- `npm run test:e2e:all`: 21 product browser tests and 1 hosted-auth browser
-  test passed.
-- All 22 commands in `.factory/claims.json` passed when invoked independently.
-- Browser coverage includes desktop keyboard/focus and dialog restoration;
-  390 px layout, 44 px targets, and 200% text; Axe serious/critical checks;
-  same-origin privacy; no cookies or console errors; reduced motion; service
-  worker update; offline demo reload; and History API focus announcements.
-- A local release served `/`, `/demo`, `/privacy`, and `/terms` with 200 and an
-  unknown route with the designed 404. HTML used `no-cache`; hashed assets used
-  immutable caching; `/sw.js`, `/api/*`, and `/health` used their required
-  no-cache/no-store policies. CSP and security headers were present.
-- Local rate checks observed request 81 return 429 for reads and request 21
-  return 429 for writes, both with `Retry-After: 59`.
-- A 100-request concurrent local read smoke returned 100/100 HTTP 200 in 526
-  ms. Health remained available and reported the supplied build identity.
-- Non-mutating live Playwright suites passed 6/6 across desktop and 390 px.
-  They covered the first screen, one-click isolated demo, privacy, legal and
-  designed 404 routes, CIAM access boundary, History API focus, Axe, response
-  headers, rate limiting, service-worker control, and offline demo reload.
-- The fleet URL verifier loaded the live page in 605 ms with no console errors,
-  `lang=en`, one H1, one main landmark, no missing image alternatives, and no
-  unlabeled buttons. Evidence is in
-  `.factory/verification-evidence/repair-7-verify-url/`.
-- Fresh mobile Lighthouse scored 98 performance, 100 accessibility, 100 best
-  practices, and 100 SEO. FCP was 1.50 s, LCP 1.65 s, TBT 125 ms, CLS 0, and
-  total transfer 181,647 bytes. The JSON report is
-  `.factory/verification-evidence/repair-7-lighthouse.json`.
+Paid upgrades remain intentionally unavailable because the registered checkout
+is unavailable; the tested UI exposes no purchase link and existing licenses
+can still be restored.
 
-## Deployment
+## Repository changes in this verification
 
-The repository-scoped release path deployed repair commit
-`025eb684f02b4b2f5ed7427b923d7d8e5d7884d7` to
-<https://inventory-promise-hold.sociobot.in>. It reported:
-
-- ready revision `sf-inventory-promise-hold--0000039`;
-- one minimum and maximum replica;
-- `sf-inventory-promise-hold-data` mounted at `/data`;
-- `/health` build identity exactly matching the deployed commit;
-- anonymous `/api/bootstrap` and `/api/holds` both returning 401;
-- local production assets byte-for-byte matching live entry JavaScript, shared
-  JavaScript, and CSS.
-
-The final evidence-only commit is rolled out through the same script so live
-`/health` matches the repository HEAD handed to the verifier.
-
-## Known gaps and next steps
-
-No product gap remains from verification 11. Paid upgrades remain intentionally
-unavailable because the registered checkout still returns 404; tested copy and
-the absence of a checkout link prevent customers from reaching it.
+Only verification documentation and evidence were added or updated. Product
+code, deployment resources, production data, DNS, billing, and secrets were not
+modified.
