@@ -67,19 +67,35 @@ Repaired candidate:
   return 429 for writes, both with `Retry-After: 59`.
 - A 100-request concurrent local read smoke returned 100/100 HTTP 200 in 526
   ms. Health remained available and reported the supplied build identity.
+- Non-mutating live Playwright suites passed 6/6 across desktop and 390 px.
+  They covered the first screen, one-click isolated demo, privacy, legal and
+  designed 404 routes, CIAM access boundary, History API focus, Axe, response
+  headers, rate limiting, service-worker control, and offline demo reload.
+- The fleet URL verifier loaded the live page in 605 ms with no console errors,
+  `lang=en`, one H1, one main landmark, no missing image alternatives, and no
+  unlabeled buttons. Evidence is in
+  `.factory/verification-evidence/repair-7-verify-url/`.
+- Fresh mobile Lighthouse scored 98 performance, 100 accessibility, 100 best
+  practices, and 100 SEO. FCP was 1.50 s, LCP 1.65 s, TBT 125 ms, CLS 0, and
+  total transfer 181,647 bytes. The JSON report is
+  `.factory/verification-evidence/repair-7-lighthouse.json`.
 
 ## Deployment
 
-Use the repository-scoped release path:
+The repository-scoped release path deployed repair commit
+`025eb684f02b4b2f5ed7427b923d7d8e5d7884d7` to
+<https://inventory-promise-hold.sociobot.in>. It reported:
 
-```sh
-npm run deploy
-```
+- ready revision `sf-inventory-promise-hold--0000039`;
+- one minimum and maximum replica;
+- `sf-inventory-promise-hold-data` mounted at `/data`;
+- `/health` build identity exactly matching the deployed commit;
+- anonymous `/api/bootstrap` and `/api/holds` both returning 401;
+- local production assets byte-for-byte matching live entry JavaScript, shared
+  JavaScript, and CSS.
 
-It delegates storage provisioning to the fleet, verifies exactly one ready
-replica with `sf-inventory-promise-hold-data` mounted at `/data`, and requires
-the live `/health` build SHA to match the committed source. Final live identity
-and URL evidence are recorded after rollout.
+The final evidence-only commit is rolled out through the same script so live
+`/health` matches the repository HEAD handed to the verifier.
 
 ## Known gaps and next steps
 
