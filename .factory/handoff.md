@@ -1,28 +1,79 @@
-# Stock Promise — adversarial review 2 handoff
+# Stock Promise — polish round 2 handoff
 
-Review 2 completed on 2026-09-02 against live build
-`f87062ac9983001b415577f4e70a88299f67b661` and repository commit
-`3a092abcbb24ee68f9cfca0a30b9c069563bae87`. The verdict is **FAIL**.
+Polish round 2 resolves all 25 cumulative findings from `review-1.md` and
+`review-2.md`. The finding-by-finding record is `.factory/polish-2.md`.
 
-The full report is `.factory/review-2.md`. It records four blocking findings:
-a landing-to-demo license-check race can write real `localStorage` after the
-demo banner appears; “Shared live” is not a verified workspace status; public
-durability/shared-storage claims are absent from `.factory/claims.json`; and
-README setup/deployment guarantees are also unlisted. Nine minor copy,
-navigation-semantic, and 404-footer findings are included.
+## What changed
 
-Verification performed:
+- Closed the landing-to-demo license race with request cancellation and a
+  namespace-current guard before any storage write.
+- Extended `@claim:demo-isolated` to reproduce the delayed live response while
+  entering `/?demo=1`, then prove every real key remains unchanged.
+- Removed the inaccurate public “Shared live” status.
+- Added registered `first-supervisor-setup` and `shared-durable-storage`
+  claims. Their Rust tests cover first setup, separate sessions, active and
+  resolved holds, audit history, and a file-backed SQLite restart.
+- Standardized the workspace name on **inventory holds**, corrected section
+  headings, replaced the demo exit label, removed identity jargon, and made
+  legal Return home controls real links.
+- Injected the build SHA into the static 404 footer during the Vite build.
+- Updated the claim manifest, demo guide, copy audit, README, catalog line,
+  browser coverage, and release evidence without changing the blue-hour
+  stockroom visual system.
 
-- cold live visits at 390×844 and 1440×1000;
-- one-click seeded demo, reset, hostile-storage, request-log, and delayed
-  license-response checks;
-- every one of the 18 registered claim commands from a fresh clone: all pass;
-- live Playwright route/demo/offline/Axe suite: 5/5 pass;
-- live internal-link crawl and designed 404 check;
-- `npm test`, `npm run check`, `cargo fmt --all -- --check`, `npm run build`,
-  and full `npm run test:e2e`: all pass (20/20 E2E scenarios).
+## Verification
 
-No product code, infrastructure, DNS, storage, secrets, or external resources
-were changed. Only the review and this required handoff were added or updated.
-The next repair should start with F-2-1 and add its delayed response regression
-case before addressing the remaining findings.
+From a fresh clone at functional release commit
+`e16a5610c97e0b19b036fd8f6d41125dbb22ee5c`:
+
+- `npm ci` — pass, zero audit vulnerabilities.
+- Every one of the 20 `.factory/claims.json` commands, run independently —
+  pass.
+- `npm test` — 3 Vitest, 9 Node contract, and 19 Rust tests pass.
+- `npm run check` — Svelte/TypeScript clean; Clippy passes with warnings denied.
+- `cargo fmt --all -- --check` — pass.
+- `npm run build` — pass; `dist/` produced. Initial JS is 95.43 KB raw /
+  34.06 KB gzip; CSS is 21.29 KB raw / 5.61 KB gzip.
+- `npm run test:e2e` — 20/20 pass, covering full workflow, keyboard, dialogs,
+  390 px, 200% text, route focus, metadata, privacy, offline, security headers,
+  and Axe.
+- Live `.factory/polish-2-live.spec.ts` — 4/4 pass, including the delayed
+  license race and cold mobile/desktop visits.
+- Worker URL verifier — 200 in 617 ms, correct title/lang/H1/main/alts, no
+  unlabeled buttons, no console errors.
+- Lighthouse mobile — Performance 99, Accessibility 100, Best Practices 100,
+  SEO 100; LCP 1.6 s, TBT 40 ms, CLS 0, 174 KiB transferred.
+- Health load smoke — 100 concurrent requests, 100 HTTP 200 responses in
+  343 ms (291 requests/second observed).
+
+## Deployment
+
+The scoped fleet release created revision
+`sf-inventory-promise-hold--0000033`. It reported HTTPS 200, one replica, one
+`sf-inventory-promise-hold-data` Azure Files volume mounted at `/data`, and a
+matching `/health` build SHA. No unrelated resource, secret, app setting,
+database, storage, DNS zone, or service was read or changed.
+
+Run another release from a clean tree with:
+
+```sh
+npm run deploy
+```
+
+Verify locally with:
+
+```sh
+npm ci
+npm test
+npm run check
+cargo fmt --all -- --check
+npm run build
+npm run test:e2e
+```
+
+## Known gaps and next steps
+
+No review finding or in-scope product defect remains. New Pro purchases stay
+unavailable because the independently recorded hosted checkout is unavailable;
+existing license restore remains tested and functional. No paid provider is
+embedded in this product.

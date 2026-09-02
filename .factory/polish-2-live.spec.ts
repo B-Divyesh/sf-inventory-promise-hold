@@ -58,7 +58,10 @@ test('one-click demo invalidates a delayed live license response', async ({ brow
   await expect(page.getByText('Demo — sample data, nothing is saved.')).toBeVisible();
   release();
   await page.waitForTimeout(100);
-  expect(await page.evaluate(() => JSON.stringify(Object.fromEntries(Object.keys(localStorage).sort().map((key) => [key, localStorage.getItem(key)])))).toBe(before);
+  const after = await page.evaluate(() => JSON.stringify(
+    Object.fromEntries(Object.keys(localStorage).sort().map((key) => [key, localStorage.getItem(key)])),
+  ));
+  expect(after).toBe(before);
   await expect(page.locator('.inventory-list > li')).toHaveCount(3);
   await expect(page.locator('.hold-list > li')).toHaveCount(1);
   await expect(page.getByRole('heading', { name: 'Manage sample inventory holds' })).toBeVisible();
