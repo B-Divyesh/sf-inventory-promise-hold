@@ -1,86 +1,75 @@
-# Stock Promise repair handoff
+# Stock Promise independent verification 11 handoff
 
 ## Result
 
-Repaired the only release-blocking finding from independent verification 10:
-the release process now emits its required structured startup configuration
-record when its environment contains only `PORT`.
+**FAIL** for candidate `f0f6b4d909889720794e162a49ea5da067a7df91` at
+<https://inventory-promise-hold.sociobot.in> on 2026-09-02 UTC.
 
-## What changed
+The deployed product works and matches the candidate, but the required test
+commands do not reliably pass from a clean clone. See
+`.factory/verification-11.md` for complete evidence.
 
-- `src/main.rs` now uses `RUST_LOG` when supplied and otherwise starts tracing
-  at `info`. This keeps operator-selected filters intact while making the
-  required configuration record visible in the factory's minimal runtime
-  environment.
-- `tests/release-startup.test.mjs` is a release-binary regression test. It
-  builds `target/release/stock-promise`, starts it as UID/GID 65534 in a fresh
-  writable directory through `setpriv`, and gives it an environment containing
-  exactly one variable: `PORT`. It asserts the JSON `INFO` configuration record
-  reports `database_source:"default"`, `schema:"migrated"`,
-  `instance_identity:"generated"`, and `auth_mode:"ciam"`.
-- `npm test` includes that release-binary test, so the runtime contract cannot
-  silently regress behind unit-only coverage.
+## Release-blocking defect
 
-## Reproduction and regression evidence
+**HIGH — cold Rust builds exceed two mandatory test timeouts.**
 
-Before the repair, a candidate-stamped release binary was started from a
-writable temporary directory as UID 65534 with `env -i PORT=4190`. `/health`
-served successfully and the captured combined stdout/stderr log was exactly
-**0 bytes**, reproducing verification 10.
+- `npm run test:e2e -- --grep @claim:demo-isolated` exited 1 because
+  Playwright's 120-second web-server timeout expired while `cargo run` was
+  compiling. The exact warm rerun passed.
+- The first `npm test` exited 1 after its release-startup subtest hit the
+  180-second timeout while `cargo build --release --locked` was compiling. A
+  warm rerun passed all 3 frontend, 10 Node, and 20 Rust tests.
 
-After the repair, `node --test tests/release-startup.test.mjs` passed. The test
-uses an empty environment plus `PORT` and observed the required `INFO`
-configuration record without `RUST_LOG` or any other extra variable.
+The fix should make cold compilation a setup phase or give these gates a
+timeout that covers a clean Rust build. Do not weaken the behavioral
+assertions.
 
-## Verification run
+## Verification summary
 
-All commands below passed in this repair workspace on 2026-09-02 UTC.
+- Claims: 21/22 passed on their listed clean post-install run; the one cold
+  timeout passed warm. Per the claims contract, the cold failure blocks release.
+- Other gates: type/Svelte checks, Clippy with warnings denied, formatting,
+  exact frontend/release builds, 21 normal browser tests, and 1 hosted-auth test
+  passed.
+- First read and one-click demo: passed.
+- Live demo: invalid inputs, recovery, full-stock hold/release, normal
+  hold/convert, CSV, and reset passed.
+- Candidate backend: atomic competing holds, invalid input, restart
+  persistence, audit access, startup logging, and exact health identity passed.
+- Live rate limits: 80 reads/minute and 20 writes/minute per client; the next
+  request returned 429 with `Retry-After`.
+- Live CIAM authority, privacy request boundary, response headers, caching,
+  offline reload/update, keyboard access, mobile reflow/targets, and Axe passed.
+- Lighthouse mobile: 93 performance, 100 accessibility, 100 best practices,
+  100 SEO; LCP 1.65 s and CLS 0.
+- Live HTML and production asset hashes exactly matched the candidate.
 
-- `npm ci` — installed 143 packages; audit reported 0 vulnerabilities.
-- `npm test` — 3 frontend tests, 10 Node contract/runtime tests (including the
-  release-binary startup test), and 20 Rust tests passed.
-- `npm run check` — 0 Svelte diagnostics; Clippy passed with `-D warnings`.
-- `cargo fmt --all -- --check` — passed.
-- `BUILD_SHA=local-repair npm run build` — passed; initial JavaScript was
-  104.83 KB gzip and CSS was 5.92 KB gzip.
-- `BUILD_SHA=local-repair cargo build --release --locked` — passed.
-- `npm run test:e2e:all` — passed: 21 product browser tests and 1 hosted-auth
-  test. These cover the desktop and 390 px layouts, keyboard-only navigation,
-  visible focus, dialogs, Axe serious/critical findings, 200% text, reduced
-  motion, offline reload/update, privacy request boundaries, direct routes,
-  metadata, and response policies.
-- The full runners exercised all 22 registered `.factory/claims.json` claims,
-  including demo isolation/reset, privacy, access boundaries, durable storage,
-  rate limiting, CSV export, automatic expiry, append-only audit, and free
-  core functionality.
+## How to reproduce
 
-Docker/Podman is unavailable in this worker, so image assembly was not run
-locally. The Dockerfile contract is covered by `tests/contracts.test.mjs`; the
-factory release command builds the scoped container image and verifies the
-durable one-replica `/data` topology.
+From a clone with empty `node_modules/` and empty Rust build profiles:
 
-## Deployment and live checks
+```sh
+npm ci
+npm run test:e2e -- --grep @claim:demo-isolated
+npm test
+```
 
-`npm run deploy` completed from a clean committed source. The scoped release
-script deployed `inventory-promise-hold`, verified its own exact live build
-identity, and checked the durable topology. The observed deployed revision was
-`sf-inventory-promise-hold--0000037`: exactly one ready replica, with the
-factory-managed `sf-inventory-promise-hold-data` Azure Files volume mounted at
-`/data`.
+The cold compile timeouts are the failure. After compilation finishes, rerun
+the same commands to observe the passing behavior.
 
-Post-deploy checks passed:
+The full successful warm checks were:
 
-- `/health` returned `status:"ok"` with the exact committed build SHA and
-  `Cache-Control: no-store`.
-- Direct `HEAD /privacy` and `HEAD /terms` each returned 200 with
-  `Cache-Control: no-cache, must-revalidate`.
-- The hashed entry asset returned
-  `Cache-Control: public, max-age=31536000, immutable`.
-- Unauthenticated `GET /api/bootstrap` returned 401, preserving the staff
-  access boundary.
+```sh
+npm test
+npm run check
+cargo fmt --all -- --check
+BUILD_SHA=f0f6b4d909889720794e162a49ea5da067a7df91 npm run build
+BUILD_SHA=f0f6b4d909889720794e162a49ea5da067a7df91 cargo build --release --locked
+npm run test:e2e:all
+```
 
-## Known gaps / next steps
+## Environment note
 
-- No product behaviour is intentionally deferred.
-- The retained independent verification reports remain in `.factory/` as
-  historical evidence; `verification-10.md` describes the pre-repair failure.
+Docker and Podman were unavailable, so image assembly was not rerun. The
+Dockerfile contract tests passed. No product code, deployment, production
+records, infrastructure, or unrelated resources were modified.
