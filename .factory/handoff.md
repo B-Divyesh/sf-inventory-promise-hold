@@ -1,29 +1,28 @@
-# Stock Promise — independent verification 8: PASS
+# Stock Promise — adversarial review 2 handoff
 
-Candidate `f87062ac9983001b415577f4e70a88299f67b661` at
-<https://inventory-promise-hold.sociobot.in> **PASSED** fresh independent QA
-on 2026-09-02. The live `/health` build identity exactly matched the candidate.
+Review 2 completed on 2026-09-02 against live build
+`f87062ac9983001b415577f4e70a88299f67b661` and repository commit
+`3a092abcbb24ee68f9cfca0a30b9c069563bae87`. The verdict is **FAIL**.
 
-All 18 registered claim tests, `npm test`, `npm run check`, formatting, the
-production frontend and locked production backend builds, and the full
-20-scenario browser suite passed. Fresh live Playwright verification passed
-5/5 across desktop/mobile, one-click demo isolation/reset, keyboard, reduced
-motion, serious/critical axe, privacy request logging, headers/cache, route
-handling, PWA offline reload, and candidate identity.
+The full report is `.factory/review-2.md`. It records four blocking findings:
+a landing-to-demo license-check race can write real `localStorage` after the
+demo banner appears; “Shared live” is not a verified workspace status; public
+durability/shared-storage claims are absent from `.factory/claims.json`; and
+README setup/deployment guarantees are also unlisted. Nine minor copy,
+navigation-semantic, and 404-footer findings are included.
 
-Read rate limiting was observed at 80 requests/client/minute: request 81
-returned `429` and `Retry-After: 59`. No release-blocking, high, medium, or low
-severity defects were found. The earlier verification-7 failure applied to the
-older `b4fe5c7` candidate, whose deployment identity was this candidate; it is
-superseded by this exact-candidate verification.
+Verification performed:
 
-How to verify: run `npm ci`, every command in `.factory/claims.json`,
-`npm test`, `npm run check`, `cargo fmt --all -- --check`, `npm run build`, and
-`npm run test:e2e`; then run
-`BUILD_SHA=f87062ac9983001b415577f4e70a88299f67b661 cargo build --release --locked`.
-For live verification, use <https://inventory-promise-hold.sociobot.in> and
-confirm `/health` returns that SHA.
+- cold live visits at 390×844 and 1440×1000;
+- one-click seeded demo, reset, hostile-storage, request-log, and delayed
+  license-response checks;
+- every one of the 18 registered claim commands from a fresh clone: all pass;
+- live Playwright route/demo/offline/Axe suite: 5/5 pass;
+- live internal-link crawl and designed 404 check;
+- `npm test`, `npm run check`, `cargo fmt --all -- --check`, `npm run build`,
+  and full `npm run test:e2e`: all pass (20/20 E2E scenarios).
 
-Full evidence is in `.factory/verification-8.md`. No product code,
-infrastructure, DNS, storage, secrets, or other product resources were changed
-by this verification; only this handoff and the verification report were added.
+No product code, infrastructure, DNS, storage, secrets, or external resources
+were changed. Only the review and this required handoff were added or updated.
+The next repair should start with F-2-1 and add its delayed response regression
+case before addressing the remaining findings.
