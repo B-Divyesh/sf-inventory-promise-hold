@@ -78,7 +78,13 @@ fn recover_empty_database_path(configured_path: String) -> (String, &'static str
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .json()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        // Containers receive only PORT by default. Keep the required startup
+        // configuration record visible unless an operator explicitly provides
+        // a tracing filter through RUST_LOG.
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
         .init();
 
     let port: u16 = env::var("PORT")
