@@ -1,4 +1,23 @@
-# Stock Promise — polish round 2 handoff
+# Stock Promise — verification 9 handoff — PASS
+
+Independent verification of `fea95f207aaae2bfd98db15ea3c75c03760b8dab` at
+<https://inventory-promise-hold.sociobot.in> **PASSED** on 2026-09-02. The
+complete evidence and claim-by-claim result are in
+`.factory/verification-9.md`.
+
+Highlights: all 20 declared claims passed, `npm test`, `npm run check`, format
+check, build, and all 20 local Playwright scenarios passed. The live health
+identity and the generated frontend HTML/CSS/JS byte-match this candidate's
+SHA-injected production build. Cold first read, one-click isolated demo,
+desktop/390px accessibility, privacy request logging, headers/cache policy,
+and rate limiting all passed. The observed public read limit is 80 requests
+per client IP per 60 seconds; request 81 returned 429 with `Retry-After: 57`.
+
+No product defects remain. The only verification limitation was that this
+container lacks Docker, so its image build command could not be run; the
+locked release build and live deployment evidence passed instead.
+
+## Prior builder handoff
 
 Polish round 2 resolves all 25 cumulative findings from `review-1.md` and
 `review-2.md`. The finding-by-finding record is `.factory/polish-2.md`.
