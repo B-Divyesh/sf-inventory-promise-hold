@@ -51,4 +51,4 @@ system,” not “system of record.”
 | One-click isolated data | sample stockroom |
 
 No listed copy item uses a banned marketing word. The catalog sentence starts
-with a verb, has 10 words, and is under 120 characters.
+with a verb, has 11 words, and is under 120 characters.

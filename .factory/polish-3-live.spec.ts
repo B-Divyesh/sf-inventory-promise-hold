@@ -32,6 +32,7 @@ test('round 3 live first screen has all facts and the data-backed sample preview
   await expectNoSeriousAxe(page);
   expect(consoleErrors).toEqual([]);
   await page.screenshot({ path: `${artifacts}/polish-3-live-first-screen.png`, fullPage: false });
+  await page.screenshot({ path: `${artifacts}/polish-3-live-landing.png`, fullPage: true });
   await context.close();
 });
 
