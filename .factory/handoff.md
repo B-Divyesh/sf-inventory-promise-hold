@@ -1,23 +1,23 @@
-# Stock Promise independent verification 12 handoff
+# Timed inventory holds handoff
 
 ## Result
 
-**PASS** for candidate `26292139a5a935a48fcc9146b6c1dc4745868373`
-at <https://inventory-promise-hold.sociobot.in> on 2026-09-02 UTC.
+**PASS** for implementation candidate
+`26292139a5a935a48fcc9146b6c1dc4745868373` at
+<https://inventory-promise-hold.sociobot.in>, reviewed on 2026-09-05 UTC.
 
-The release-blocking cold-build timeout from verification 11 is fixed. From
-this clean checkout, all 22 commands in `.factory/claims.json` passed on their
-listed runs, the first `npm test` passed, and the live service reports and
-serves the exact candidate.
+The documentation baseline reviewed alongside it was
+`3be6147af141b90fb2f7c76a713863fd58bb74f6`; it contains only prior review
+reports and evidence. The live health endpoint reports the implementation SHA.
 
-Full evidence and the single low-severity visual finding are recorded in
-[`verification-12.md`](verification-12.md).
+There are zero findings and zero untested claims. The mobile tab-wrap issue
+recorded in verification 12 was checked at 390 px and no longer reproduces:
+labels wrap only at spaces, remain readable, and do not overflow.
 
-## How it was verified
+## Run and verify
 
 ```sh
 npm ci
-# Each .factory/claims.json test command, invoked separately
 npm test
 npm run check
 cargo fmt --all -- --check
@@ -25,32 +25,30 @@ VITE_BUILD_SHA=26292139a5a935a48fcc9146b6c1dc4745868373 npm run build
 npm run test:e2e:all
 ```
 
-Docker/Podman was unavailable, but the locked frontend and release-backend
-stages and the Docker/runtime contract tests passed.
+Also run every command named by `.factory/claims.json` separately. Review 4
+ran all 22 from a clean checkout; all passed. The production build writes
+`dist/`. The Rust service starts with `PORT` alone and keeps its SQLite state
+under `/data` when that durable mount is present.
 
-Independent checks covered the one-click demo, normal and boundary holds,
-release/convert, CSV, reset, atomic competing writes, process-restart
-persistence, audit entries, health identity, CIAM authority, authorization,
-live read/write limits, concurrency, request privacy, response headers,
-desktop/390 px layout, keyboard and focus, 200% text, reduced motion, Axe,
-history routing, service-worker update, offline reload, links, exact asset
-hashes, caching, and bundle/performance budgets.
+## What was checked
 
-Fresh Lighthouse scored 93 performance, 100 accessibility, 100 best practices,
-and 100 SEO. The fleet URL verifier passed with no console errors.
+The live desktop and 390 px phone first screens explain the job, audience, and
+sample action before scrolling. One click opens isolated realistic sample data;
+the banner, reset, no-live-write boundary, invalid and boundary validation,
+hold conversion/release, CSV export, and reset were exercised.
 
-## Known gap
+Review 4 also checked the health build identity, anonymous access boundary,
+429 plus Retry-After read/write limits, privacy request boundary, Axe serious/
+critical results, route titles, legal pages, deliberate 404 page, same-origin
+links, service-worker update, and offline demo reload. Local tests cover the
+atomic competing hold, restart persistence, audit protection, setup, roles,
+expiry, retention, and erasure paths.
 
-**Low severity:** at 390 px, the demo's three tab labels wrap inside words.
-They remain complete and operable with 44 px targets and no overflow. A later
-polish change should allow wrapping only at spaces or use shorter mobile labels.
+The prior verification measured Lighthouse at 93 performance, 100
+accessibility, 100 best practices, and 100 SEO. No product code or deployment
+state was changed during review 4.
 
-Paid upgrades remain intentionally unavailable because the registered checkout
-is unavailable; the tested UI exposes no purchase link and existing licenses
-can still be restored.
+## Remaining work
 
-## Repository changes in this verification
-
-Only verification documentation and evidence were added or updated. Product
-code, deployment resources, production data, DNS, billing, and secrets were not
-modified.
+None identified by this review. Paid upgrades remain unavailable; the product
+correctly exposes no purchase link while existing licenses can be restored.
